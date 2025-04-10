@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { MapPin, User, Menu, X } from 'lucide-react';
 import { LocationData } from '@/types';
@@ -9,8 +10,13 @@ interface NavbarProps {
   onLocationClick: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ location, onLocationClick }) => {
+const Navbar: React.FC<NavbarProps> = ({ location }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLocationClick = () => {
+    navigate('/location');
+  };
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background shadow-sm">
@@ -25,7 +31,7 @@ const Navbar: React.FC<NavbarProps> = ({ location, onLocationClick }) => {
           variant="ghost" 
           size="sm" 
           className="md:ml-4 flex items-center text-spotly-dark" 
-          onClick={onLocationClick}
+          onClick={handleLocationClick}
         >
           <MapPin className="mr-1 h-4 w-4 text-spotly-red" />
           <span className="truncate max-w-[150px]">
@@ -45,10 +51,10 @@ const Navbar: React.FC<NavbarProps> = ({ location, onLocationClick }) => {
 
         {/* Desktop navigation */}
         <nav className="hidden md:flex items-center space-x-4">
-          <Button variant="ghost">Explore</Button>
-          <Button variant="ghost">Saved</Button>
-          <Button variant="ghost">Bookings</Button>
-          <Button variant="outline" size="icon">
+          <Button variant="ghost" onClick={() => navigate('/')}>Explore</Button>
+          <Button variant="ghost" onClick={() => navigate('/bookings')}>Bookings</Button>
+          <Button variant="ghost" onClick={() => navigate('/saved')}>Saved</Button>
+          <Button variant="outline" size="icon" onClick={() => navigate('/profile')}>
             <User size={18} />
           </Button>
         </nav>
@@ -58,10 +64,10 @@ const Navbar: React.FC<NavbarProps> = ({ location, onLocationClick }) => {
       {isOpen && (
         <div className="md:hidden bg-background border-t">
           <div className="container mx-auto py-2 px-4 flex flex-col space-y-2">
-            <Button variant="ghost" className="justify-start">Explore</Button>
-            <Button variant="ghost" className="justify-start">Saved</Button>
-            <Button variant="ghost" className="justify-start">Bookings</Button>
-            <Button variant="ghost" className="justify-start">Profile</Button>
+            <Button variant="ghost" className="justify-start" onClick={() => navigate('/')}>Explore</Button>
+            <Button variant="ghost" className="justify-start" onClick={() => navigate('/bookings')}>Bookings</Button>
+            <Button variant="ghost" className="justify-start" onClick={() => navigate('/saved')}>Saved</Button>
+            <Button variant="ghost" className="justify-start" onClick={() => navigate('/profile')}>Profile</Button>
           </div>
         </div>
       )}

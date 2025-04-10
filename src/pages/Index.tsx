@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import SearchFilters from '@/components/SearchFilters';
 import PlacesList from '@/components/PlacesList';
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { MapPin, List, Map as MapIcon } from 'lucide-react';
 
 const Index = () => {
+  const navigate = useNavigate();
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({ category: 'all' });
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
@@ -28,13 +30,11 @@ const Index = () => {
 
   const handlePlaceClick = (place: Place) => {
     setSelectedPlace(place);
-    // In a real app, this would navigate to a detail page
-    console.log("Viewing details for:", place.name);
+    navigate(`/place/${place.id}`);
   };
 
   const handleLocationClick = () => {
-    // In a real app, this would open a location selection modal
-    console.log("Opening location selector");
+    navigate('/location');
   };
 
   return (
@@ -45,6 +45,12 @@ const Index = () => {
         {/* Search filters */}
         <div className="p-4 border-b">
           <SearchFilters onFilterChange={handleFilterChange} initialFilters={filterOptions} />
+        </div>
+        
+        {/* Location info */}
+        <div className="px-4 py-2 text-sm text-muted-foreground flex items-center">
+          <MapPin className="w-3 h-3 mr-1" />
+          Showing results near {location?.city || "your location"}
         </div>
         
         {/* View mode toggle */}
@@ -102,7 +108,13 @@ const Index = () => {
                 <div className="bg-background rounded-lg shadow-lg p-4 mx-auto max-w-md">
                   <div className="flex justify-between">
                     <h3 className="font-bold">{selectedPlace.name}</h3>
-                    <Button size="sm" variant="default">View Details</Button>
+                    <Button 
+                      size="sm" 
+                      variant="default"
+                      onClick={() => navigate(`/place/${selectedPlace.id}`)}
+                    >
+                      View Details
+                    </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">{selectedPlace.distance} km away • {selectedPlace.category}</p>
                 </div>
