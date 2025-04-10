@@ -13,7 +13,7 @@ const BottomNav = () => {
   if (!shouldShowNav) return null;
   
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-background border-t z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-background border-t z-50 shadow-lg">
       <div className="flex justify-around items-center h-16">
         <NavItem to="/" icon={<Home />} label="Explore" />
         <NavItem to="/bookings" icon={<CalendarDays />} label="Bookings" />
@@ -35,8 +35,8 @@ const NavItem: React.FC<NavItemProps> = ({ to, icon, label }) => {
     <NavLink 
       to={to} 
       className={({ isActive }) => 
-        `flex flex-col items-center w-full py-1 ${
-          isActive ? 'text-spotly-red' : 'text-muted-foreground'
+        `flex flex-col items-center w-full py-1 transition-all duration-200 ${
+          isActive ? 'text-spotly-red scale-105' : 'text-muted-foreground'
         }`
       }
     >

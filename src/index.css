@@ -84,3 +84,56 @@
   width: 100%;
   height: 100%;
 }
+
+/* Add animation keyframes */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Custom scrollbar styling */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Card hover effects */
+.card-hover {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Gradient backgrounds */
+.bg-gradient-mint {
+  background-image: linear-gradient(to right, #84fab0 0%, #8fd3f4 100%);
+}
+
+.bg-gradient-coral {
+  background-image: linear-gradient(to right, #ff9a9e 0%, #fad0c4 100%);
+}
+
+.bg-gradient-sky {
+  background-image: linear-gradient(120deg, #a1c4fd 0%, #c2e9fb 100%);
+}
+
+.bg-gradient-deep-blue {
+  background-image: linear-gradient(to right, #6a11cb 0%, #2575fc 100%);
+}
