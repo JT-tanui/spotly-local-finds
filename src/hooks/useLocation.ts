@@ -20,7 +20,6 @@ export function useLocation() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude, lng } = position.coords;
         setLocation({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
