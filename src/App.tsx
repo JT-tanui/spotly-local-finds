@@ -12,8 +12,35 @@ import Saved from "./pages/Saved";
 import LocationPicker from "./pages/LocationPicker";
 import NotFound from "./pages/NotFound";
 import BottomNav from "./components/BottomNav";
+import TopNav from "./components/TopNav";
+import { useIsTablet, useIsDesktop } from "./hooks/useMediaQuery";
+
+// Add keyframes animation for bounce
+import "./index.css";
 
 const queryClient = new QueryClient();
+
+const AppRoutes = () => {
+  const isTabletOrDesktop = useIsTablet() || useIsDesktop();
+  
+  return (
+    <>
+      {isTabletOrDesktop && <TopNav />}
+      <div className={`max-w-6xl mx-auto min-h-screen relative bg-background ${isTabletOrDesktop ? 'pt-16' : ''}`}>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/place/:id" element={<PlaceDetails />} />
+          <Route path="/bookings" element={<Bookings />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/saved" element={<Saved />} />
+          <Route path="/location" element={<LocationPicker />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+        <BottomNav />
+      </div>
+    </>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -21,18 +48,7 @@ const App = () => (
       <Toaster />
       <Sonner position="top-center" />
       <BrowserRouter>
-        <div className="max-w-md mx-auto min-h-screen relative bg-background">
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/place/:id" element={<PlaceDetails />} />
-            <Route path="/bookings" element={<Bookings />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/saved" element={<Saved />} />
-            <Route path="/location" element={<LocationPicker />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <BottomNav />
-        </div>
+        <AppRoutes />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

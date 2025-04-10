@@ -2,13 +2,16 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Home, CalendarDays, Heart, User } from 'lucide-react';
+import { useIsTablet, useIsDesktop } from '@/hooks/useMediaQuery';
 
 const BottomNav = () => {
   const location = useLocation();
+  const isTablet = useIsTablet();
+  const isDesktop = useIsDesktop();
   
-  // Don't show bottom nav on these routes
+  // Don't show bottom nav on these routes or on tablet/desktop
   const hideNavRoutes = ['/location'];
-  const shouldShowNav = !hideNavRoutes.includes(location.pathname);
+  const shouldShowNav = !hideNavRoutes.includes(location.pathname) && !isTablet && !isDesktop;
   
   if (!shouldShowNav) return null;
   
@@ -36,11 +39,15 @@ const NavItem: React.FC<NavItemProps> = ({ to, icon, label }) => {
       to={to} 
       className={({ isActive }) => 
         `flex flex-col items-center w-full py-1 transition-all duration-200 ${
-          isActive ? 'text-spotly-red scale-105' : 'text-muted-foreground'
+          isActive ? 'text-spotly-red scale-110' : 'text-muted-foreground'
         }`
       }
     >
-      <div className="h-6 w-6 mb-1">{icon}</div>
+      <div className={`h-6 w-6 mb-1 transition-transform ${
+        location.pathname === to ? 'animate-bounce-once' : ''
+      }`}>
+        {icon}
+      </div>
       <span className="text-xs">{label}</span>
     </NavLink>
   );
