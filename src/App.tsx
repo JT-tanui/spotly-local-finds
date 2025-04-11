@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,7 +8,7 @@ import Index from "./pages/Index";
 import PlaceDetails from "./pages/PlaceDetails";
 import Bookings from "./pages/Bookings";
 import Profile from "./pages/Profile";
-import Saved from "./pages/Saved";
+import GroupEvents from "./pages/GroupEvents";
 import LocationPicker from "./pages/LocationPicker";
 import NotFound from "./pages/NotFound";
 import BottomNav from "./components/BottomNav";

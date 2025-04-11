@@ -12,8 +12,28 @@ export const mapDbEventToEvent = (dbEvent: any, places?: any[]): Event => {
   const place = places?.find(p => p.id === dbEvent.place_id);
   
   return {
-    ...dbEvent,
+    id: dbEvent.id,
+    creator_id: dbEvent.creator_id,
+    place_id: dbEvent.place_id,
     place,
-    status: dbEvent.status as 'active' | 'cancelled' | 'completed'
+    title: dbEvent.title,
+    description: dbEvent.description,
+    event_date: dbEvent.event_date,
+    created_at: dbEvent.created_at,
+    max_participants: dbEvent.max_participants,
+    status: dbEvent.status as 'active' | 'cancelled' | 'completed',
+    participants: dbEvent.participants || dbEvent.event_participants
   };
+};
+
+// Helper function to format dates for display
+export const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('en-US', { 
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(date);
 };

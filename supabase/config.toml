@@ -7,3 +7,5 @@ verify_jwt = true
 [functions.purchase-ticket]
 verify_jwt = true
 
+[functions.invite-to-event]
+verify_jwt = true

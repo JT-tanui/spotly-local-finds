@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Heart, CalendarDays, Star } from 'lucide-react';
 import { Place } from '@/types';
-import { Badge } from '@/components/ui/card';
 
 interface ProfileOverviewProps {
   favorites: Place[];
