@@ -63,3 +63,45 @@ export interface ReservationData {
   notes?: string;
   waiveFee?: boolean;
 }
+
+// New types for events
+export interface Event {
+  id: string;
+  creator_id: string;
+  place_id: string;
+  place?: Place;
+  title: string;
+  description?: string;
+  event_date: string;
+  created_at: string;
+  max_participants?: number;
+  status: 'active' | 'cancelled' | 'completed';
+  participants?: EventParticipant[];
+}
+
+export interface EventParticipant {
+  id: string;
+  event_id: string;
+  user_id: string;
+  status: 'invited' | 'accepted' | 'declined' | 'maybe';
+  created_at: string;
+  user?: {
+    name?: string;
+    avatar_url?: string;
+    email?: string;
+  };
+}
+
+// New type for reservations
+export interface Reservation {
+  id: string;
+  user_id: string;
+  place_id: string;
+  place?: Place;
+  reservation_date: string;
+  party_size: number;
+  status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}

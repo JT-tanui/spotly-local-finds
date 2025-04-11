@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon, Clock, Users, CreditCard, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,13 +9,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { toast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Place, ReservationData } from '@/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import { useLocation } from '@/hooks/useLocation';
+import { usePlaces } from '@/hooks/usePlaces';
 
 interface ReservationModalProps {
-  place: Place;
+  place: Place | null;
   isOpen: boolean;
   onClose: () => void;
+  onReservationCreated?: () => void;
 }
 
 const timeSlots = [
@@ -25,7 +30,16 @@ const timeSlots = [
   '7:00 PM', '7:30 PM', '8:00 PM', '8:30 PM',
 ];
 
-const ReservationModal: React.FC<ReservationModalProps> = ({ place, isOpen, onClose }) => {
+const ReservationModal: React.FC<ReservationModalProps> = ({ 
+  place, 
+  isOpen, 
+  onClose, 
+  onReservationCreated 
+}) => {
+  const { toast } = useToast();
+  const { location } = useLocation();
+  const { allPlaces } = usePlaces(location);
+  
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [time, setTime] = useState<string>('');
   const [partySize, setPartySize] = useState<number>(2);
@@ -35,48 +49,133 @@ const ReservationModal: React.FC<ReservationModalProps> = ({ place, isOpen, onCl
   const [notes, setNotes] = useState<string>('');
   const [waiveFee, setWaiveFee] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
 
   // In a real app, this would be determined by user status or app settings
   const isFirstReservation = true;
   const reservationFee = 5.00;
+  
+  useEffect(() => {
+    if (place) {
+      setSelectedPlaceId(place.id);
+    }
+  }, [place]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!date || !time || !selectedPlaceId) {
+      toast({
+        title: "Missing information",
+        description: "Please fill out all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setLoading(true);
-
-    // Create reservation data
-    const reservationData: ReservationData = {
-      placeId: place.id,
-      date: date!,
-      time,
-      partySize,
-      name,
-      email,
-      phone,
-      notes,
-      waiveFee
-    };
-
-    // In a real app, this would send a request to your server
-    setTimeout(() => {
-      console.log('Reservation submitted:', reservationData);
-      setLoading(false);
+    
+    try {
+      // Get the current user
+      const { data: userData } = await supabase.auth.getUser();
+      
+      if (!userData?.user) {
+        toast({
+          title: "Authentication required",
+          description: "Please sign in to make a reservation",
+          variant: "destructive"
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // Convert 12-hour time format to 24-hour for database
+      const timeComponents = time.match(/(\d+):(\d+) (AM|PM)/);
+      if (!timeComponents) {
+        throw new Error("Invalid time format");
+      }
+      
+      let hours = parseInt(timeComponents[1], 10);
+      const minutes = parseInt(timeComponents[2], 10);
+      const period = timeComponents[3];
+      
+      if (period === "PM" && hours < 12) hours += 12;
+      if (period === "AM" && hours === 12) hours = 0;
+      
+      // Create reservation date by combining date and time
+      const reservationDate = new Date(date);
+      reservationDate.setHours(hours, minutes);
+      
+      // Create reservation
+      const { data: reservation, error } = await supabase
+        .from('reservations')
+        .insert({
+          user_id: userData.user.id,
+          place_id: selectedPlaceId,
+          reservation_date: reservationDate.toISOString(),
+          party_size: partySize,
+          notes: notes || null
+        })
+        .select()
+        .single();
+        
+      if (error) throw error;
+      
       toast({
         title: "Reservation confirmed!",
-        description: `Your reservation at ${place.name} on ${format(date!, 'PP')} at ${time} has been confirmed.`,
+        description: `Your reservation has been successfully created.`,
       });
+      
+      if (onReservationCreated) {
+        onReservationCreated();
+      }
+      
       onClose();
-    }, 1500);
+    } catch (error: any) {
+      console.error('Error creating reservation:', error);
+      toast({
+        title: "Reservation failed",
+        description: error.message || "Failed to create reservation. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Reserve at {place.name}</DialogTitle>
+          <DialogTitle>
+            {place ? `Reserve at ${place.name}` : 'Make a Reservation'}
+          </DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          {/* Place Selection (only if no place is provided) */}
+          {!place && (
+            <div className="space-y-2">
+              <Label htmlFor="place">Select a Place</Label>
+              <Select 
+                value={selectedPlaceId || ''} 
+                onValueChange={setSelectedPlaceId}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a place" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allPlaces.map((place) => (
+                    <SelectItem key={place.id} value={place.id}>
+                      {place.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
           {/* Date Picker */}
           <div className="space-y-2">
             <Label htmlFor="date">Date</Label>
@@ -97,6 +196,11 @@ const ReservationModal: React.FC<ReservationModalProps> = ({ place, isOpen, onCl
                   selected={date}
                   onSelect={setDate}
                   initialFocus
+                  disabled={(date) => {
+                    const now = new Date();
+                    now.setHours(0, 0, 0, 0);
+                    return date < now;
+                  }}
                 />
               </PopoverContent>
             </Popover>
@@ -171,7 +275,6 @@ const ReservationModal: React.FC<ReservationModalProps> = ({ place, isOpen, onCl
               id="name" 
               value={name}
               onChange={(e) => setName(e.target.value)}
-              required
             />
           </div>
 
@@ -182,7 +285,6 @@ const ReservationModal: React.FC<ReservationModalProps> = ({ place, isOpen, onCl
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
             />
           </div>
 
@@ -193,7 +295,6 @@ const ReservationModal: React.FC<ReservationModalProps> = ({ place, isOpen, onCl
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              required
             />
           </div>
 
