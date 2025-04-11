@@ -10,7 +10,7 @@ import { useLocation } from '@/hooks/useLocation';
 import { usePlaces } from '@/hooks/usePlaces';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, List, Map as MapIcon, Calendar, Sparkles } from 'lucide-react';
+import { MapPin, List, Map as MapIcon, Calendar, Sparkles, Star } from 'lucide-react';
 import { useIsDesktop, useIsTablet, useIsMobile } from '@/hooks/useMediaQuery';
 
 const Index = () => {
@@ -99,7 +99,7 @@ const Index = () => {
                 className={`rounded-full whitespace-nowrap text-xs px-3 py-1 ${
                   filterOptions.category === category.id ? 'bg-spotly-red text-white' : category.color
                 }`}
-                onClick={() => setFilterOptions({...filterOptions, category: category.id})}
+                onClick={() => setFilterOptions({...filterOptions, category: category.id as any})}
               >
                 {category.name}
               </Button>
@@ -309,9 +309,7 @@ const Index = () => {
               title="Places Near You" 
               places={places} 
               loading={locationLoading || placesLoading} 
-              onPlaceClick={handlePlaceClick} 
-              listLayout={isDesktop ? 'grid' : 'list'}
-              columns={isDesktop ? 3 : isTablet ? 2 : 1}
+              onPlaceClick={handlePlaceClick}
             />
           </div>
         ) : (
