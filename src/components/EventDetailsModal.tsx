@@ -50,7 +50,16 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         
       if (error) throw error;
       
-      setParticipants(data || []);
+      // Convert raw data to EventParticipant type
+      const typedParticipants: EventParticipant[] = data?.map(p => ({
+        id: p.id,
+        event_id: p.event_id,
+        user_id: p.user_id,
+        status: p.status as 'invited' | 'accepted' | 'declined' | 'maybe',
+        created_at: p.created_at,
+      })) || [];
+      
+      setParticipants(typedParticipants);
     } catch (error) {
       console.error('Error fetching participants:', error);
     } finally {

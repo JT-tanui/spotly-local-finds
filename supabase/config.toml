@@ -1,1 +1,8 @@
+
 project_id = "eawzznzovrgfxdbcdwzv"
+
+[functions.create-user-profile]
+verify_jwt = true
+
+[functions.purchase-ticket]
+verify_jwt = true

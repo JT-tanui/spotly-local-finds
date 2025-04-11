@@ -39,7 +39,7 @@ const Saved = () => {
       if (!currentUser?.user) {
         // For demo, load mock data if user is not authenticated
         // In a real app, you would prompt to login
-        setEvents([
+        const mockEvents: Event[] = [
           {
             id: '1',
             creator_id: 'mock-user',
@@ -64,7 +64,8 @@ const Saved = () => {
             created_at: new Date().toISOString(),
             status: 'active'
           }
-        ]);
+        ];
+        setEvents(mockEvents);
         setLoading(false);
         return;
       }
@@ -79,12 +80,13 @@ const Saved = () => {
         
       if (eventsError) throw eventsError;
       
-      // Enrich events with place data
-      const enrichedEvents = eventsData.map(event => {
+      // Enrich events with place data and ensure types match
+      const enrichedEvents: Event[] = eventsData.map(event => {
         const place = allPlaces.find(p => p.id === event.place_id);
         return {
           ...event,
-          place
+          place,
+          status: event.status as 'active' | 'cancelled' | 'completed'
         };
       });
       

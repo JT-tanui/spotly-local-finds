@@ -64,17 +64,41 @@ export interface ReservationData {
   waiveFee?: boolean;
 }
 
-// New types for events
+// User profile types
+export interface UserProfile {
+  id: string;
+  username?: string;
+  full_name?: string;
+  avatar_url?: string;
+  email?: string;
+  phone?: string;
+  preferences?: UserPreferences;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface UserPreferences {
+  favorite_categories?: PlaceCategory[];
+  price_range?: number[];
+  notification_settings?: {
+    email: boolean;
+    push: boolean;
+    sms: boolean;
+  };
+  location_sharing: boolean;
+}
+
+// Updated Event types to match database
 export interface Event {
   id: string;
   creator_id: string;
   place_id: string;
   place?: Place;
   title: string;
-  description?: string;
+  description?: string | null;
   event_date: string;
   created_at: string;
-  max_participants?: number;
+  max_participants?: number | null;
   status: 'active' | 'cancelled' | 'completed';
   participants?: EventParticipant[];
 }
@@ -92,7 +116,7 @@ export interface EventParticipant {
   };
 }
 
-// New type for reservations
+// Updated Reservation type to match database
 export interface Reservation {
   id: string;
   user_id: string;
@@ -101,7 +125,45 @@ export interface Reservation {
   reservation_date: string;
   party_size: number;
   status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
-  notes?: string;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// New Ticket type for ticket purchases
+export interface Ticket {
+  id: string;
+  user_id: string;
+  place_id: string;
+  place?: Place;
+  event_id?: string;
+  event?: Event;
+  ticket_type: 'standard' | 'vip' | 'early_bird';
+  price: number;
+  purchase_date: string;
+  event_date: string;
+  status: 'valid' | 'used' | 'expired' | 'cancelled';
+  qr_code?: string;
+  created_at: string;
+}
+
+// New Message type for in-app messaging
+export interface Message {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  content: string;
+  read: boolean;
+  created_at: string;
+}
+
+// New Invitation type
+export interface Invitation {
+  id: string;
+  event_id: string;
+  sender_id: string;
+  recipient_email: string;
+  status: 'sent' | 'accepted' | 'expired';
+  medium: 'email' | 'sms' | 'in_app';
+  created_at: string;
 }
