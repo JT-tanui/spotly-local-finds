@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Users, MoreVertical, CheckCircle, XCircle, HelpCircle } from 'lucide-react';
+import { Calendar, MapPin, Users, MoreVertical, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Event, Place } from '@/types';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -24,10 +24,14 @@ const EventCard: React.FC<EventCardProps> = ({ event, places, isOwner = false, o
   
   // Find the place details
   const place = places.find(p => p.id === event.place_id) || {
+    id: 'unknown',
     name: 'Unknown location',
     imageUrl: 'https://images.unsplash.com/photo-1518237353330-0f7657e8bb9a?ixlib=rb-1.2.1&q=80&fm=jpg&crop=entropy&cs=tinysrgb&w=1080&fit=max',
     address: '',
-    category: 'other' as const
+    category: 'other' as const,
+    rating: 0,
+    reviewCount: 0,
+    location: { lat: 0, lng: 0 }
   };
   
   const isExpired = isPast(new Date(event.event_date));

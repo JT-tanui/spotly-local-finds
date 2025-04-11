@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.36.0";
-import { v4 as uuidv4 } from "https://esm.sh/uuid@9.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,14 +42,19 @@ serve(async (req) => {
       );
     }
 
-    // Get ticket details from request
-    const { place_id, event_id, ticket_type, price, event_date } = await req.json();
+    // Get the ticket purchase data from request
+    const { 
+      place_id, 
+      event_id, 
+      ticket_type, 
+      price, 
+      event_date 
+    } = await req.json();
 
-    if (!place_id || !price || !event_date) {
+    // Simple validation
+    if (!place_id || !ticket_type || !price || !event_date) {
       return new Response(
-        JSON.stringify({
-          error: "Missing required fields",
-        }),
+        JSON.stringify({ error: "Missing required fields for ticket purchase" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -58,22 +62,22 @@ serve(async (req) => {
       );
     }
 
-    // Generate QR code (for demo, just a UUID)
-    const qr_code = `TICKET-${uuidv4()}`;
+    // Create a mock QR code - in a real application this would be generated properly
+    const qr_code = `TICKET-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
-    // Create the ticket
-    const { data: ticket, error: ticketError } = await supabaseClient
+    // Insert the ticket record in the database
+    const { data: ticketData, error: ticketError } = await supabaseClient
       .from("tickets")
       .insert({
         user_id: user.id,
         place_id,
-        event_id,
+        event_id: event_id || null,
         ticket_type,
         price,
         purchase_date: new Date().toISOString(),
         event_date,
         status: "valid",
-        qr_code,
+        qr_code
       })
       .select()
       .single();
@@ -82,9 +86,15 @@ serve(async (req) => {
       throw ticketError;
     }
 
-    return new Response(JSON.stringify({ success: true, ticket }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.log("Ticket purchased successfully:", ticketData);
+
+    return new Response(
+      JSON.stringify({ success: true, ticket: ticketData }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   } catch (error) {
     console.error("Error in purchase-ticket function:", error);
     return new Response(

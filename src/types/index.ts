@@ -130,7 +130,7 @@ export interface Reservation {
   updated_at: string;
 }
 
-// New Ticket type for ticket purchases
+// Ticket type for ticket purchases
 export interface Ticket {
   id: string;
   user_id: string;
@@ -147,7 +147,7 @@ export interface Ticket {
   created_at: string;
 }
 
-// New Message type for in-app messaging
+// Message type for in-app messaging
 export interface Message {
   id: string;
   sender_id: string;
@@ -157,7 +157,7 @@ export interface Message {
   created_at: string;
 }
 
-// New Invitation type
+// Invitation type
 export interface Invitation {
   id: string;
   event_id: string;
