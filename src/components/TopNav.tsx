@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Home, CalendarDays, Heart, User, Search, 
+  Home, CalendarDays, Users, User, Search, 
   MapPin, LogOut, Menu, X 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -48,7 +48,7 @@ const TopNav = () => {
         <nav className="hidden md:flex items-center space-x-1">
           <NavItem to="/" icon={<Home size={18} />} label="Explore" />
           <NavItem to="/bookings" icon={<CalendarDays size={18} />} label="Bookings" />
-          <NavItem to="/saved" icon={<Heart size={18} />} label="Saved" />
+          <NavItem to="/events" icon={<Users size={18} />} label="Events" />
         </nav>
 
         {/* Right side items */}
@@ -99,9 +99,9 @@ const TopNav = () => {
                 <CalendarDays className="mr-2 h-4 w-4" />
                 Bookings
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/saved')}>
-                <Heart className="mr-2 h-4 w-4" />
-                Saved Places
+              <DropdownMenuItem onClick={() => navigate('/events')}>
+                <Users className="mr-2 h-4 w-4" />
+                Group Events
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
@@ -155,9 +155,9 @@ const TopNav = () => {
               onClick={() => setIsMobileMenuOpen(false)} 
             />
             <MobileMenuItem 
-              to="/saved" 
-              icon={<Heart size={18} />} 
-              label="Saved" 
+              to="/events" 
+              icon={<Users size={18} />} 
+              label="Group Events" 
               onClick={() => setIsMobileMenuOpen(false)} 
             />
             <MobileMenuItem 
