@@ -51,6 +51,8 @@ const SocialConnections = () => {
           description: "Failed to load connections.",
           variant: "destructive",
         });
+        // Set connections to empty array to avoid undefined issues
+        setConnections([]);
       } finally {
         setLoading(false);
       }
@@ -121,17 +123,17 @@ const SocialConnections = () => {
       ) : (
         <div className="space-y-3">
           {connections.map(connection => (
-            <div key={connection.connected_profile.id} className="flex items-center justify-between p-4 border rounded-md">
+            <div key={connection.connected_profile?.id || connection.id} className="flex items-center justify-between p-4 border rounded-md">
               <div className="flex items-center space-x-4">
                 <Avatar>
-                  <AvatarImage src={connection.connected_profile.avatar_url} />
+                  <AvatarImage src={connection.connected_profile?.avatar_url} />
                   <AvatarFallback>
                     <User className="h-4 w-4" />
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-medium">{connection.connected_profile.full_name}</p>
-                  <p className="text-sm text-muted-foreground">{connection.connected_profile.email}</p>
+                  <p className="font-medium">{connection.connected_profile?.full_name || 'Unknown User'}</p>
+                  <p className="text-sm text-muted-foreground">{connection.connected_profile?.email || 'No email'}</p>
                 </div>
               </div>
               <Button variant="outline" disabled>Connected</Button>

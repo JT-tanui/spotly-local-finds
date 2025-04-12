@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useIsDesktop, useIsTablet } from '@/hooks/useMediaQuery';
 import { usePlaces } from '@/hooks/usePlaces';
 import { useLocation } from '@/hooks/useLocation';
-import { supabase } from '@/integrations/supabase/client';
 import { UserProfile } from '@/types';
 import ProfileHeader from '@/components/ProfileHeader';
 import ProfileStats from '@/components/ProfileStats';
@@ -39,8 +39,8 @@ const Profile = () => {
   };
   
   // Use first 3 places as mock favorites
-  const [favorites] = useState(featuredPlaces.slice(0, 3));
-  const [pastBookings] = useState(allPlaces.slice(0, 2));
+  const [favorites] = useState(featuredPlaces?.slice(0, 3) || []);
+  const [pastBookings] = useState(allPlaces?.slice(0, 2) || []);
 
   useEffect(() => {
     if (profile) {

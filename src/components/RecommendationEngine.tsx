@@ -47,12 +47,16 @@ interface RecommendationProps {
   userId?: string;
   location?: { lat: number; lng: number };
   preferences?: string[];
+  maxItems?: number;
+  className?: string;
 }
 
 const RecommendationEngine: React.FC<RecommendationProps> = ({
   userId,
   location,
-  preferences
+  preferences,
+  maxItems = 3,
+  className = ''
 }) => {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,58 +69,64 @@ const RecommendationEngine: React.FC<RecommendationProps> = ({
     navigate(`/place/${place.id}`);
   };
 
-  useEffect(() => {
-    const fetchRecommendations = async () => {
-      try {
-        setLoading(true);
-        
-        // Use user's current location if not provided in props
-        const currentLocation = location || userLocation || { lat: 34.052235, lng: -118.243683 };
-        
-        // Call Supabase Edge Function for AI recommendations
-        const { data, error } = await supabase.functions.invoke('ai-recommendation', {
-          body: {
-            userId,
-            location: currentLocation,
-            preferences
-          }
-        });
-
-        if (error) {
-          throw error;
-        }
-
-        if (data && data.recommendations) {
-          setRecommendations(data.recommendations);
-        } else {
-          // Fallback to sample data if the function doesn't return expected format
-          setRecommendations(sampleRecommendations);
-        }
-      } catch (error) {
-        console.error('Error fetching recommendations:', error);
-        toast({
-          title: 'Could not load recommendations',
-          description: 'Using sample recommendations instead',
-          variant: 'destructive',
-        });
-        setRecommendations(sampleRecommendations);
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  // Function to refresh recommendations
+  const refreshRecommendations = () => {
     fetchRecommendations();
-  }, [userId, location, preferences, toast, userLocation]);
+  };
+
+  const fetchRecommendations = async () => {
+    try {
+      setLoading(true);
+      
+      // Use user's current location if not provided in props
+      const currentLocation = location || userLocation || { lat: 34.052235, lng: -118.243683 };
+      
+      // Call Supabase Edge Function for AI recommendations
+      const { data, error } = await supabase.functions.invoke('ai-recommendation', {
+        body: {
+          userId,
+          location: currentLocation,
+          preferences
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data && data.recommendations) {
+        // Apply maxItems limit
+        setRecommendations(data.recommendations.slice(0, maxItems));
+      } else {
+        // Fallback to sample data if the function doesn't return expected format
+        setRecommendations(sampleRecommendations.slice(0, maxItems));
+      }
+    } catch (error) {
+      console.error('Error fetching recommendations:', error);
+      toast({
+        title: 'Could not load recommendations',
+        description: 'Using sample recommendations instead',
+        variant: 'destructive',
+      });
+      setRecommendations(sampleRecommendations.slice(0, maxItems));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecommendations();
+  }, [userId, location, preferences, maxItems]);
 
   return (
-    <Card>
+    <Card className={className}>
       <CardContent className="p-5">
         <h2 className="text-xl font-semibold mb-4">Recommended for You</h2>
         
         {loading ? (
           // Loading skeleton
           <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
+            {[...Array(maxItems)].map((_, i) => (
               <div key={`skeleton-${i}`} className="flex gap-4">
                 <Skeleton className="h-24 w-24 rounded-md flex-shrink-0" />
                 <div className="space-y-2 flex-1">
@@ -157,7 +167,10 @@ const RecommendationEngine: React.FC<RecommendationProps> = ({
           </div>
         )}
         
-        <Button className="w-full mt-4 bg-gradient-to-r from-spotly-red to-spotly-blue text-white">
+        <Button 
+          className="w-full mt-4 bg-gradient-to-r from-spotly-red to-spotly-blue text-white"
+          onClick={refreshRecommendations}
+        >
           Refresh Recommendations
         </Button>
       </CardContent>
