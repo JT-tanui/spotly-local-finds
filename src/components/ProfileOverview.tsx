@@ -2,8 +2,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Heart, CalendarDays, Star } from 'lucide-react';
+import { Heart, CalendarDays, Star, ChevronRight } from 'lucide-react';
 import { Place } from '@/types';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 interface ProfileOverviewProps {
   favorites: Place[];
@@ -12,6 +13,7 @@ interface ProfileOverviewProps {
 
 const ProfileOverview: React.FC<ProfileOverviewProps> = ({ favorites, pastBookings }) => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   
   const handlePlaceClick = (place: Place) => {
     navigate(`/place/${place.id}`);
@@ -24,43 +26,87 @@ const ProfileOverview: React.FC<ProfileOverviewProps> = ({ favorites, pastBookin
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Saved Places</h2>
           {favorites.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => navigate('/saved')}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/saved')}
+              className="text-spotly-red flex items-center"
+            >
               View All
+              {isMobile && <ChevronRight className="h-4 w-4 ml-1" />}
             </Button>
           )}
         </div>
         
         {favorites.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {favorites.map((place) => (
-              <div 
-                key={place.id}
-                className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow animate-fade-in cursor-pointer"
-                onClick={() => handlePlaceClick(place)}
-              >
-                <div className="relative h-32">
-                  <img 
-                    src={place.imageUrl} 
-                    alt={place.name} 
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-0 right-0 bg-black/60 text-white text-xs px-2 py-1 rounded-bl-lg">
-                    {place.distance} km
+          isMobile ? (
+            // Mobile view for saved places - horizontal scrollable list
+            <div className="overflow-x-auto scrollbar-none -mx-4 px-4">
+              <div className="flex space-x-3" style={{ minWidth: 'max-content' }}>
+                {favorites.map((place) => (
+                  <div 
+                    key={place.id}
+                    className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow animate-fade-in cursor-pointer min-w-[200px] max-w-[200px]"
+                    onClick={() => handlePlaceClick(place)}
+                  >
+                    <div className="relative h-28">
+                      <img 
+                        src={place.imageUrl} 
+                        alt={place.name} 
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-0 right-0 bg-black/60 text-white text-xs px-2 py-1 rounded-bl-lg">
+                        {place.distance} km
+                      </div>
+                    </div>
+                    <div className="p-3">
+                      <h3 className="font-semibold truncate">{place.name}</h3>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs bg-slate-100 px-2 py-0.5 rounded-full">{place.category}</span>
+                        <div className="flex items-center">
+                          <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 mr-1" />
+                          <span className="text-xs">{place.rating}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="p-3">
-                  <h3 className="font-semibold truncate">{place.name}</h3>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs bg-slate-100 px-2 py-0.5 rounded-full">{place.category}</span>
-                    <div className="flex items-center">
-                      <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 mr-1" />
-                      <span className="text-xs">{place.rating}</span>
+                ))}
+                <div className="pr-4"></div> {/* Extra padding at the end for better scrolling */}
+              </div>
+            </div>
+          ) : (
+            // Desktop view for saved places - grid layout
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {favorites.map((place) => (
+                <div 
+                  key={place.id}
+                  className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow animate-fade-in cursor-pointer"
+                  onClick={() => handlePlaceClick(place)}
+                >
+                  <div className="relative h-32">
+                    <img 
+                      src={place.imageUrl} 
+                      alt={place.name} 
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-0 right-0 bg-black/60 text-white text-xs px-2 py-1 rounded-bl-lg">
+                      {place.distance} km
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <h3 className="font-semibold truncate">{place.name}</h3>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs bg-slate-100 px-2 py-0.5 rounded-full">{place.category}</span>
+                      <div className="flex items-center">
+                        <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 mr-1" />
+                        <span className="text-xs">{place.rating}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )
         ) : (
           <div className="border rounded-lg py-8 text-center">
             <Heart className="h-8 w-8 mx-auto text-muted-foreground" />
@@ -80,15 +126,25 @@ const ProfileOverview: React.FC<ProfileOverviewProps> = ({ favorites, pastBookin
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Recent Bookings</h2>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/bookings')}>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => navigate('/bookings')}
+            className="text-spotly-red flex items-center"
+          >
             View All
+            {isMobile && <ChevronRight className="h-4 w-4 ml-1" />}
           </Button>
         </div>
         
         {pastBookings.length > 0 ? (
           <div className="space-y-3">
             {pastBookings.map((booking, index) => (
-              <div key={`booking-${index}`} className="overflow-hidden border rounded-lg shadow-sm">
+              <div 
+                key={`booking-${index}`} 
+                className="overflow-hidden border rounded-lg shadow-sm"
+                onClick={() => handlePlaceClick(booking)}
+              >
                 <div className="flex">
                   <div className="w-24 h-24">
                     <img 
@@ -115,7 +171,10 @@ const ProfileOverview: React.FC<ProfileOverviewProps> = ({ favorites, pastBookin
                         variant="link" 
                         size="sm" 
                         className="h-auto p-0 text-spotly-red"
-                        onClick={() => handlePlaceClick(booking)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePlaceClick(booking);
+                        }}
                       >
                         Book Again
                       </Button>

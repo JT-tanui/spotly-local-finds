@@ -8,6 +8,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useLocation } from '@/hooks/useLocation';
 import { Place } from '@/types';
+import { RefreshCw } from 'lucide-react';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 // Sample recommendations data for fallback
 const sampleRecommendations = [
@@ -45,7 +47,7 @@ const sampleRecommendations = [
 
 interface RecommendationProps {
   userId?: string;
-  location?: { lat: number; lng: number };
+  location?: { lat: number; lng: number } | null;
   preferences?: string[];
   maxItems?: number;
   className?: string;
@@ -63,6 +65,7 @@ const RecommendationEngine: React.FC<RecommendationProps> = ({
   const { toast } = useToast();
   const navigate = useNavigate();
   const { location: userLocation } = useLocation();
+  const isMobile = useIsMobile();
 
   // Function to handle navigation to place details
   const handlePlaceClick = (place: Place) => {
@@ -121,14 +124,25 @@ const RecommendationEngine: React.FC<RecommendationProps> = ({
   return (
     <Card className={className}>
       <CardContent className="p-5">
-        <h2 className="text-xl font-semibold mb-4">Recommended for You</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">Recommended for You</h2>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={refreshRecommendations} 
+            className="h-8 w-8"
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
         
         {loading ? (
           // Loading skeleton
           <div className="space-y-4">
             {[...Array(maxItems)].map((_, i) => (
               <div key={`skeleton-${i}`} className="flex gap-4">
-                <Skeleton className="h-24 w-24 rounded-md flex-shrink-0" />
+                <Skeleton className="h-20 w-20 rounded-md flex-shrink-0" />
                 <div className="space-y-2 flex-1">
                   <Skeleton className="h-4 w-2/3" />
                   <Skeleton className="h-3 w-1/2" />
@@ -142,37 +156,32 @@ const RecommendationEngine: React.FC<RecommendationProps> = ({
             {recommendations.map((rec) => (
               <div 
                 key={rec.id}
-                className="flex gap-4 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"
+                className="flex gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"
                 onClick={() => handlePlaceClick(rec)}
               >
                 <img 
                   src={rec.imageUrl} 
                   alt={rec.name} 
-                  className="h-24 w-24 rounded-md object-cover flex-shrink-0" 
+                  className={`rounded-md object-cover flex-shrink-0 ${isMobile ? 'h-20 w-20' : 'h-24 w-24'}`} 
                 />
-                <div>
+                <div className="flex-1">
                   <div className="flex justify-between">
-                    <h3 className="font-semibold">{rec.name}</h3>
-                    <span className="text-sm text-muted-foreground">{rec.distance} km</span>
+                    <h3 className="font-semibold text-sm">{rec.name}</h3>
+                    <span className="text-xs text-muted-foreground">{rec.distance} km</span>
                   </div>
                   <div className="flex items-center gap-2 my-1">
                     <span className="text-xs bg-slate-100 px-2 py-0.5 rounded-full">{rec.category}</span>
                     <span className="text-xs">★ {rec.rating}</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">{rec.description}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2">
+                    {rec.description}
+                  </p>
                   <p className="text-xs text-spotly-red mt-1">{rec.reason}</p>
                 </div>
               </div>
             ))}
           </div>
         )}
-        
-        <Button 
-          className="w-full mt-4 bg-gradient-to-r from-spotly-red to-spotly-blue text-white"
-          onClick={refreshRecommendations}
-        >
-          Refresh Recommendations
-        </Button>
       </CardContent>
     </Card>
   );

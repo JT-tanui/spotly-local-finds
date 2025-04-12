@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useIsDesktop, useIsTablet } from '@/hooks/useMediaQuery';
+import { useIsDesktop, useIsTablet, useIsMobile } from '@/hooks/useMediaQuery';
 import { usePlaces } from '@/hooks/usePlaces';
 import { useLocation } from '@/hooks/useLocation';
 import { UserProfile } from '@/types';
@@ -17,10 +17,12 @@ import HelpTab from '@/components/HelpTab';
 import SocialConnections from '@/components/SocialConnections';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import RecommendationEngine from '@/components/RecommendationEngine';
 
 const Profile = () => {
   const isDesktop = useIsDesktop();
   const isTablet = useIsTablet();
+  const isMobile = useIsMobile();
   const { location } = useLocation();
   const { featuredPlaces, allPlaces } = usePlaces(location);
   const { toast } = useToast();
@@ -49,15 +51,27 @@ const Profile = () => {
   }, [profile]);
 
   return (
-    <div className={`pt-[62px] pb-20 ${isDesktop ? 'px-8' : 'px-4'}`}>
-      {/* Page Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">My Profile</h1>
-        <Button variant="ghost" size="sm" onClick={() => setActiveTab("settings")}>
-          <Settings className="h-4 w-4 mr-1" />
-          Settings
-        </Button>
-      </div>
+    <div className={`${isMobile ? 'pt-[10px]' : 'pt-[62px]'} pb-20 ${isDesktop ? 'px-8' : 'px-4'}`}>
+      {/* Page Header - Desktop Only */}
+      {!isMobile && (
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">My Profile</h1>
+          <Button variant="ghost" size="sm" onClick={() => setActiveTab("settings")}>
+            <Settings className="h-4 w-4 mr-1" />
+            Settings
+          </Button>
+        </div>
+      )}
+      
+      {/* Mobile Header */}
+      {isMobile && (
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl font-bold">My Profile</h1>
+          <Button variant="ghost" size="icon" onClick={() => setActiveTab("settings")}>
+            <Settings className="h-5 w-5" />
+          </Button>
+        </div>
+      )}
       
       {/* Main Content - Responsive Layout */}
       <div className={`${isDesktop ? 'grid grid-cols-3 gap-6' : 'flex flex-col gap-4'}`}>
@@ -91,6 +105,16 @@ const Profile = () => {
               {(isDesktop || isTablet) && (
                 <ReferralCard referralCode={profileStats.referralCode} />
               )}
+
+              {/* Recommendations - Mobile Only */}
+              {isMobile && profile && (
+                <RecommendationEngine 
+                  userId={profile.id}
+                  location={location}
+                  maxItems={2}
+                  className="mb-6"
+                />
+              )}
             </>
           )}
         </div>
@@ -112,6 +136,11 @@ const Profile = () => {
                 
                 {/* Other Overview Components */}
                 <ProfileOverview favorites={favorites} pastBookings={pastBookings} />
+
+                {/* Referral Card - Mobile Only */}
+                {isMobile && (
+                  <ReferralCard referralCode={profileStats.referralCode} />
+                )}
               </div>
             </TabsContent>
             
