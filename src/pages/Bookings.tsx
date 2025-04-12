@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, isPast } from 'date-fns';
 import { usePlaces } from '@/hooks/usePlaces';
 import { useLocation } from '@/hooks/useLocation';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import ReservationModal from '@/components/ReservationModal';
 
 // Type for tab values
@@ -19,6 +21,7 @@ const Bookings = () => {
   const { toast } = useToast();
   const { location } = useLocation();
   const { allPlaces } = usePlaces(location);
+  const isMobile = useIsMobile();
   
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [upcomingBookings, setUpcomingBookings] = useState<Reservation[]>([]);
@@ -408,7 +411,7 @@ const Bookings = () => {
   };
 
   return (
-    <div className="pt-[62px] pb-20 px-4">
+    <div className={`${isMobile ? 'pt-4' : 'pt-[62px]'} pb-20 px-4`}>
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Your Bookings</h1>
         

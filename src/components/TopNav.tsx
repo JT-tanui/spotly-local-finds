@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Home, CalendarDays, Users, User, Search, 
-  MapPin, LogOut, Menu, X 
+  MapPin, LogOut, Menu, X, MessageSquare, Bell
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { useLocation as useLocationHook } from '@/hooks/useLocation';
+import { Badge } from '@/components/ui/badge';
 
 const TopNav = () => {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ const TopNav = () => {
   const { location: userLocation } = useLocationHook();
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(3); // Example unread count
 
   const toggleSearch = () => setIsSearchVisible(!isSearchVisible);
 
@@ -49,6 +51,12 @@ const TopNav = () => {
           <NavItem to="/" icon={<Home size={18} />} label="Explore" />
           <NavItem to="/bookings" icon={<CalendarDays size={18} />} label="Bookings" />
           <NavItem to="/events" icon={<Users size={18} />} label="Events" />
+          <NavItem 
+            to="/inbox" 
+            icon={<MessageSquare size={18} />} 
+            label="Inbox" 
+            badge={unreadMessages > 0 ? unreadMessages : undefined} 
+          />
         </nav>
 
         {/* Right side items */}
@@ -102,6 +110,15 @@ const TopNav = () => {
               <DropdownMenuItem onClick={() => navigate('/events')}>
                 <Users className="mr-2 h-4 w-4" />
                 Group Events
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/inbox')}>
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Inbox
+                {unreadMessages > 0 && (
+                  <Badge variant="destructive" className="ml-auto px-1 min-w-5 text-center">
+                    {unreadMessages}
+                  </Badge>
+                )}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
@@ -161,6 +178,13 @@ const TopNav = () => {
               onClick={() => setIsMobileMenuOpen(false)} 
             />
             <MobileMenuItem 
+              to="/inbox" 
+              icon={<MessageSquare size={18} />} 
+              label="Inbox" 
+              onClick={() => setIsMobileMenuOpen(false)} 
+              badge={unreadMessages > 0 ? unreadMessages : undefined}
+            />
+            <MobileMenuItem 
               to="/profile" 
               icon={<User size={18} />} 
               label="Profile" 
@@ -183,9 +207,10 @@ interface NavItemProps {
   to: string;
   icon: React.ReactNode;
   label: string;
+  badge?: number;
 }
 
-const NavItem: React.FC<NavItemProps> = ({ to, icon, label }) => {
+const NavItem: React.FC<NavItemProps> = ({ to, icon, label, badge }) => {
   return (
     <NavLink
       to={to}
@@ -199,6 +224,11 @@ const NavItem: React.FC<NavItemProps> = ({ to, icon, label }) => {
     >
       <span className="mr-1">{icon}</span>
       {label}
+      {badge !== undefined && (
+        <Badge variant="destructive" className="ml-1.5 px-1 min-w-5 text-center">
+          {badge}
+        </Badge>
+      )}
     </NavLink>
   );
 };
@@ -208,9 +238,10 @@ interface MobileMenuItemProps {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
+  badge?: number;
 }
 
-const MobileMenuItem: React.FC<MobileMenuItemProps> = ({ to, icon, label, onClick }) => {
+const MobileMenuItem: React.FC<MobileMenuItemProps> = ({ to, icon, label, onClick, badge }) => {
   return (
     <NavLink
       to={to}
@@ -225,6 +256,11 @@ const MobileMenuItem: React.FC<MobileMenuItemProps> = ({ to, icon, label, onClic
     >
       <span className="mr-3">{icon}</span>
       {label}
+      {badge !== undefined && (
+        <Badge variant="destructive" className="ml-auto px-1 min-w-5 text-center">
+          {badge}
+        </Badge>
+      )}
     </NavLink>
   );
 };

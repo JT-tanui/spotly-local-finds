@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, CalendarDays, Users, User } from 'lucide-react';
+import { Home, CalendarDays, Users, User, MessageSquare } from 'lucide-react';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 
 const BottomNav = () => {
@@ -20,6 +20,7 @@ const BottomNav = () => {
         <NavItem to="/" icon={<Home />} label="Explore" />
         <NavItem to="/bookings" icon={<CalendarDays />} label="Bookings" />
         <NavItem to="/events" icon={<Users />} label="Events" />
+        <NavItem to="/inbox" icon={<MessageSquare />} label="Inbox" />
         <NavItem to="/profile" icon={<User />} label="Profile" />
       </div>
     </nav>

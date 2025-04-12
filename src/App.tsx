@@ -11,6 +11,7 @@ import Bookings from "./pages/Bookings";
 import Profile from "./pages/Profile";
 import GroupEvents from "./pages/GroupEvents";
 import LocationPicker from "./pages/LocationPicker";
+import Inbox from "./pages/Inbox";
 import NotFound from "./pages/NotFound";
 import BottomNav from "./components/BottomNav";
 import TopNav from "./components/TopNav";
@@ -36,6 +37,7 @@ const AppRoutes = () => {
           <Route path="/bookings" element={<Bookings />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/events" element={<GroupEvents />} />
+          <Route path="/inbox" element={<Inbox />} />
           <Route path="/location" element={<LocationPicker />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/onboarding" element={<Onboarding />} />

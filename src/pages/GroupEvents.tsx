@@ -11,6 +11,7 @@ import EventCard from '@/components/EventCard';
 import CreateEventModal from '@/components/CreateEventModal';
 import { useLocation } from '@/hooks/useLocation';
 import { usePlaces } from '@/hooks/usePlaces';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 type SortOption = 'recent' | 'date' | 'alphabetical';
 
@@ -19,6 +20,7 @@ const GroupEvents = () => {
   const { location } = useLocation();
   const { allPlaces } = usePlaces(location);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   
   const [events, setEvents] = useState<Event[]>([]);
   const [myEvents, setMyEvents] = useState<Event[]>([]);
@@ -156,7 +158,7 @@ const GroupEvents = () => {
   };
 
   return (
-    <div className="pt-[62px] pb-20 px-4">
+    <div className={`${isMobile ? 'pt-4' : 'pt-[62px]'} pb-20 px-4`}>
       <h1 className="text-2xl font-bold mb-4">Group Events</h1>
       
       <div className="flex justify-between items-center mb-4">
