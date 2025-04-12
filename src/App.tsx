@@ -9,7 +9,7 @@ import Index from "./pages/Index";
 import PlaceDetails from "./pages/PlaceDetails";
 import Bookings from "./pages/Bookings";
 import Profile from "./pages/Profile";
-import GroupEvents from "./pages/GroupEvents";  // Renamed from Saved
+import GroupEvents from "./pages/GroupEvents";
 import LocationPicker from "./pages/LocationPicker";
 import NotFound from "./pages/NotFound";
 import BottomNav from "./components/BottomNav";
@@ -51,13 +51,13 @@ const AppRoutes = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <AuthContextProvider>
-        <Toaster />
-        <Sonner position="top-center" />
-        <BrowserRouter>
+      <BrowserRouter>
+        <AuthContextProvider>
+          <Toaster />
+          <Sonner position="top-center" />
           <AppRoutes />
-        </BrowserRouter>
-      </AuthContextProvider>
+        </AuthContextProvider>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
@@ -189,7 +188,7 @@ const RecommendationEngine: React.FC<RecommendationEngineProps> = ({
           <div className="space-y-4">
             {data.recommendations.slice(0, maxItems).map((rec) => (
               <div key={rec.id} className="relative">
-                <PlaceCard place={recommendationToPlace(rec)} />
+                <PlaceCard place={recommendationToPlace(rec)} onClick={() => handlePlaceClick(recommendationToPlace(rec))} />
                 {rec.match_percentage >= 90 && (
                   <Badge className="absolute top-2 right-2 bg-gradient-to-r from-green-500 to-emerald-500">
                     {rec.match_percentage}% Match
