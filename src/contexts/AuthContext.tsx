@@ -229,7 +229,8 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
     }
   };
 
-  const value = {
+  // Create the context value object with all required properties
+  const contextValue: AuthContextType = {
     user,
     session,
     profile,
@@ -241,5 +242,5 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
     setProfile,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }

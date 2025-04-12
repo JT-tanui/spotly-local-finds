@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,7 @@ import { User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface UserProfile {
   id: string;
@@ -15,14 +17,20 @@ interface UserProfile {
 
 const SocialConnections = () => {
   const [connections, setConnections] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
     const fetchConnections = async () => {
-      if (!user) return;
-
+      setLoading(true);
+      
       try {
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('user_connections')
           .select(`
@@ -43,6 +51,8 @@ const SocialConnections = () => {
           description: "Failed to load connections.",
           variant: "destructive",
         });
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -81,6 +91,28 @@ const SocialConnections = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div>
+        <h2 className="text-lg font-semibold mb-4">My Connections</h2>
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="flex items-center justify-between p-4 border rounded-md">
+              <div className="flex items-center space-x-4">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div>
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-32 mt-1" />
+                </div>
+              </div>
+              <Skeleton className="h-9 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <h2 className="text-lg font-semibold mb-4">My Connections</h2>
@@ -109,10 +141,8 @@ const SocialConnections = () => {
       )}
 
       <h2 className="text-lg font-semibold mt-6 mb-4">Find New Connections</h2>
-      {/* Implement a search or suggestion mechanism here to find new users */}
-      {/* For demonstration purposes, let's add a static list of potential connections */}
       <div className="space-y-3">
-        {/* Example user - replace with actual data */}
+        {/* Example user suggestions */}
         <div className="flex items-center justify-between p-4 border rounded-md">
           <div className="flex items-center space-x-4">
             <Avatar>
@@ -130,7 +160,24 @@ const SocialConnections = () => {
             Add Connection
           </Button>
         </div>
-        {/* Add more example users as needed */}
+        
+        <div className="flex items-center justify-between p-4 border rounded-md">
+          <div className="flex items-center space-x-4">
+            <Avatar>
+              <AvatarImage src="https://i.pravatar.cc/150?img=11" />
+              <AvatarFallback>
+                <User className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="font-medium">John Smith</p>
+              <p className="text-sm text-muted-foreground">john.smith@example.com</p>
+            </div>
+          </div>
+          <Button variant="outline" onClick={() => handleAddConnection("user-id-john")}>
+            Add Connection
+          </Button>
+        </div>
       </div>
     </div>
   );

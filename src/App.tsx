@@ -18,7 +18,6 @@ import { useIsTablet, useIsDesktop } from "./hooks/useMediaQuery";
 import AuthContextProvider from "./contexts/AuthContext";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
-import AppConfig from "./config";
 
 import "./index.css";
 
@@ -50,15 +49,15 @@ const AppRoutes = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <BrowserRouter>
+    <BrowserRouter>
+      <TooltipProvider>
         <AuthContextProvider>
           <Toaster />
           <Sonner position="top-center" />
           <AppRoutes />
         </AuthContextProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+      </TooltipProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 

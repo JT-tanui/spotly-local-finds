@@ -1,214 +1,167 @@
+
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Sparkles, RefreshCw } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from '@/hooks/useLocation';
 import { Place } from '@/types';
-import PlaceCard from '@/components/PlaceCard';
-import AppConfig from '@/config';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 
-interface Recommendation {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-  price: number;
-  rating: number;
-  distance: number;
-  imageUrl: string;
-  match_percentage: number;
-  features: string[];
-}
-
-interface RecommendationResponse {
-  recommendations: Recommendation[];
-  explanation: string;
-}
-
-const fetchRecommendations = async (
-  userId: string | undefined, 
-  location: { lat: number; lng: number } | null,
-  preferences?: any
-): Promise<RecommendationResponse> => {
-  try {
-    // Call the Supabase Edge Function
-    const { data, error } = await supabase.functions.invoke('ai-recommendation', {
-      body: { userId, location, preferences },
-    });
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error fetching recommendations:', error);
-    throw new Error('Failed to get recommendations');
+// Sample recommendations data for fallback
+const sampleRecommendations = [
+  {
+    id: 'rec1',
+    name: 'Green Park Cafe',
+    category: 'Cafe',
+    rating: 4.7,
+    distance: 0.6,
+    imageUrl: 'https://i.pravatar.cc/300?img=20',
+    description: 'Cozy cafe with excellent pastries and coffee.',
+    reason: 'Based on your coffee preferences'
+  },
+  {
+    id: 'rec2',
+    name: 'Sunset Bistro',
+    category: 'Restaurant',
+    rating: 4.5,
+    distance: 1.2,
+    imageUrl: 'https://i.pravatar.cc/300?img=21',
+    description: 'French cuisine with a modern twist.',
+    reason: 'Popular with your connections'
+  },
+  {
+    id: 'rec3',
+    name: 'City Gym',
+    category: 'Fitness',
+    rating: 4.8,
+    distance: 0.8,
+    imageUrl: 'https://i.pravatar.cc/300?img=22',
+    description: 'Modern gym with the latest equipment.',
+    reason: 'Matches your workout habits'
   }
-};
+];
 
-// Convert recommendation to Place type for PlaceCard component
-const recommendationToPlace = (rec: Recommendation): Place => ({
-  id: rec.id,
-  name: rec.name,
-  category: rec.category as any,
-  description: rec.description,
-  address: `${rec.distance.toFixed(1)} km away`,
-  rating: rec.rating,
-  reviewCount: Math.floor(Math.random() * 100) + 10,
-  price: rec.price,
-  imageUrl: rec.imageUrl,
-  location: { lat: 0, lng: 0 }, // Placeholder
-  distance: rec.distance,
-  isFeatured: rec.match_percentage > 85
-});
-
-interface RecommendationEngineProps {
-  maxItems?: number;
-  showRefresh?: boolean;
-  className?: string;
+interface RecommendationProps {
+  userId?: string;
+  location?: { lat: number; lng: number };
+  preferences?: string[];
 }
 
-const RecommendationEngine: React.FC<RecommendationEngineProps> = ({ 
-  maxItems = 3, 
-  showRefresh = true,
-  className = ''
+const RecommendationEngine: React.FC<RecommendationProps> = ({
+  userId,
+  location,
+  preferences
 }) => {
-  const { user, profile } = useAuth();
-  const { location } = useLocation();
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const [userPreferences, setUserPreferences] = useState<any>(null);
+  const navigate = useNavigate();
+  const { location: userLocation } = useLocation();
 
-  // Fetch user preferences from Supabase
+  // Function to handle navigation to place details
+  const handlePlaceClick = (place: Place) => {
+    navigate(`/place/${place.id}`);
+  };
+
   useEffect(() => {
-    const fetchUserPreferences = async () => {
-      if (user?.id && !AppConfig.skipAuthentication) {
-        try {
-          const { data, error } = await supabase
-            .from('user_preferences')
-            .select('*')
-            .eq('user_id', user.id)
-            .single();
-            
-          if (error) throw error;
-          if (data) setUserPreferences(data);
-        } catch (error) {
-          console.error('Error fetching user preferences:', error);
+    const fetchRecommendations = async () => {
+      try {
+        setLoading(true);
+        
+        // Use user's current location if not provided in props
+        const currentLocation = location || userLocation || { lat: 34.052235, lng: -118.243683 };
+        
+        // Call Supabase Edge Function for AI recommendations
+        const { data, error } = await supabase.functions.invoke('ai-recommendation', {
+          body: {
+            userId,
+            location: currentLocation,
+            preferences
+          }
+        });
+
+        if (error) {
+          throw error;
         }
+
+        if (data && data.recommendations) {
+          setRecommendations(data.recommendations);
+        } else {
+          // Fallback to sample data if the function doesn't return expected format
+          setRecommendations(sampleRecommendations);
+        }
+      } catch (error) {
+        console.error('Error fetching recommendations:', error);
+        toast({
+          title: 'Could not load recommendations',
+          description: 'Using sample recommendations instead',
+          variant: 'destructive',
+        });
+        setRecommendations(sampleRecommendations);
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchUserPreferences();
-  }, [user?.id]);
-
-  // Query for recommendations
-  const { 
-    data, 
-    isLoading, 
-    error, 
-    refetch, 
-    isFetching 
-  } = useQuery({
-    queryKey: ['recommendations', user?.id, location?.lat, location?.lng, userPreferences],
-    queryFn: () => fetchRecommendations(
-      user?.id, 
-      location ? { lat: location.lat, lng: location.lng } : null,
-      userPreferences
-    ),
-    enabled: !!location, // Only run when location is available
-    staleTime: 1000 * 60 * 15, // 15 minutes
-  });
-
-  const handleRefresh = () => {
-    refetch();
-    toast({
-      title: "Refreshing recommendations",
-      description: "Finding new spots just for you",
-    });
-  };
-
-  if (error) {
-    return (
-      <Card className={`${className} border-red-200 bg-red-50`}>
-        <CardContent className="pt-6">
-          <div className="text-center space-y-2">
-            <p className="text-red-500">Failed to load recommendations</p>
-            <Button variant="outline" onClick={() => refetch()}>Try Again</Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+    fetchRecommendations();
+  }, [userId, location, preferences, toast, userLocation]);
 
   return (
-    <div className={className}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center">
-          <Sparkles className="w-5 h-5 text-yellow-500 mr-2" />
-          <h2 className="text-lg font-medium">For You</h2>
-          {isFetching && !isLoading && (
-            <span className="ml-2">
-              <RefreshCw className="w-3 h-3 animate-spin text-muted-foreground" />
-            </span>
-          )}
-        </div>
+    <Card>
+      <CardContent className="p-5">
+        <h2 className="text-xl font-semibold mb-4">Recommended for You</h2>
         
-        {showRefresh && (
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleRefresh}
-            disabled={isFetching}
-          >
-            <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        )}
-      </div>
-      
-      {isLoading ? (
-        <div className="space-y-4">
-          {[...Array(maxItems)].map((_, i) => (
-            <div key={i} className="space-y-2">
-              <Skeleton className="h-48 w-full rounded-xl" />
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-4 w-1/2" />
-            </div>
-          ))}
-        </div>
-      ) : data?.recommendations ? (
-        <div className="space-y-6">
-          {data.explanation && (
-            <p className="text-sm text-muted-foreground">{data.explanation}</p>
-          )}
-          
+        {loading ? (
+          // Loading skeleton
           <div className="space-y-4">
-            {data.recommendations.slice(0, maxItems).map((rec) => (
-              <div key={rec.id} className="relative">
-                <PlaceCard place={recommendationToPlace(rec)} onClick={() => handlePlaceClick(recommendationToPlace(rec))} />
-                {rec.match_percentage >= 90 && (
-                  <Badge className="absolute top-2 right-2 bg-gradient-to-r from-green-500 to-emerald-500">
-                    {rec.match_percentage}% Match
-                  </Badge>
-                )}
-                {rec.match_percentage >= 75 && rec.match_percentage < 90 && (
-                  <Badge className="absolute top-2 right-2 bg-gradient-to-r from-blue-500 to-indigo-500">
-                    {rec.match_percentage}% Match
-                  </Badge>
-                )}
+            {[...Array(3)].map((_, i) => (
+              <div key={`skeleton-${i}`} className="flex gap-4">
+                <Skeleton className="h-24 w-24 rounded-md flex-shrink-0" />
+                <div className="space-y-2 flex-1">
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-3 w-5/6" />
+                </div>
               </div>
             ))}
           </div>
-        </div>
-      ) : (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No recommendations available</p>
-        </div>
-      )}
-    </div>
+        ) : (
+          <div className="space-y-4">
+            {recommendations.map((rec) => (
+              <div 
+                key={rec.id}
+                className="flex gap-4 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"
+                onClick={() => handlePlaceClick(rec)}
+              >
+                <img 
+                  src={rec.imageUrl} 
+                  alt={rec.name} 
+                  className="h-24 w-24 rounded-md object-cover flex-shrink-0" 
+                />
+                <div>
+                  <div className="flex justify-between">
+                    <h3 className="font-semibold">{rec.name}</h3>
+                    <span className="text-sm text-muted-foreground">{rec.distance} km</span>
+                  </div>
+                  <div className="flex items-center gap-2 my-1">
+                    <span className="text-xs bg-slate-100 px-2 py-0.5 rounded-full">{rec.category}</span>
+                    <span className="text-xs">★ {rec.rating}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{rec.description}</p>
+                  <p className="text-xs text-spotly-red mt-1">{rec.reason}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        <Button className="w-full mt-4 bg-gradient-to-r from-spotly-red to-spotly-blue text-white">
+          Refresh Recommendations
+        </Button>
+      </CardContent>
+    </Card>
   );
 };
 
