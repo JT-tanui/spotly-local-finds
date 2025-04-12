@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,8 +7,6 @@ import { usePlaces } from '@/hooks/usePlaces';
 import { useLocation } from '@/hooks/useLocation';
 import { supabase } from '@/integrations/supabase/client';
 import { UserProfile } from '@/types';
-
-// Import refactored components
 import ProfileHeader from '@/components/ProfileHeader';
 import ProfileStats from '@/components/ProfileStats';
 import QuickActions from '@/components/QuickActions';
@@ -17,7 +14,9 @@ import ReferralCard from '@/components/ReferralCard';
 import ProfileOverview from '@/components/ProfileOverview';
 import SettingsTab from '@/components/SettingsTab';
 import HelpTab from '@/components/HelpTab';
+import SocialConnections from '@/components/SocialConnections';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Profile = () => {
   const isDesktop = useIsDesktop();
@@ -25,10 +24,10 @@ const Profile = () => {
   const { location } = useLocation();
   const { featuredPlaces, allPlaces } = usePlaces(location);
   const { toast } = useToast();
+  const { user, profile } = useAuth();
   
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   
   // Mock stats data - in a real app, this would come from the backend
   const profileStats = {
@@ -44,55 +43,10 @@ const Profile = () => {
   const [pastBookings] = useState(allPlaces.slice(0, 2));
 
   useEffect(() => {
-    fetchUserProfile();
-  }, []);
-
-  const fetchUserProfile = async () => {
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      
-      if (authData.user) {
-        // Try to fetch user profile from database
-        const { data: profileData, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', authData.user.id)
-          .single();
-          
-        if (profileData) {
-          setUserProfile(profileData);
-        } else {
-          // If no profile exists, use auth data to create a mock profile
-          setUserProfile({
-            id: authData.user.id,
-            email: authData.user.email,
-            full_name: authData.user.user_metadata?.full_name || "User",
-            avatar_url: authData.user.user_metadata?.avatar_url,
-            created_at: authData.user.created_at,
-          });
-        }
-      } else {
-        // Mock user for demo
-        setUserProfile({
-          id: "mock-user",
-          full_name: "Sarah Johnson",
-          email: "sarah@example.com",
-          phone: "+1 (555) 123-4567",
-          avatar_url: "https://i.pravatar.cc/150?img=23",
-          created_at: new Date("2023-11-01").toISOString(),
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      toast({
-        title: "Error loading profile",
-        description: "Failed to load your profile information",
-        variant: "destructive"
-      });
-    } finally {
+    if (profile) {
       setLoading(false);
     }
-  };
+  }, [profile]);
 
   return (
     <div className={`pt-[62px] pb-20 ${isDesktop ? 'px-8' : 'px-4'}`}>
@@ -117,9 +71,9 @@ const Profile = () => {
             </div>
           ) : (
             <>
-              {userProfile && (
+              {profile && (
                 <ProfileHeader 
-                  user={userProfile} 
+                  user={profile} 
                   onEditProfile={() => setActiveTab("settings")} 
                 />
               )}
@@ -152,7 +106,13 @@ const Profile = () => {
             </TabsList>
             
             <TabsContent value="overview" className="animate-fade-in">
-              <ProfileOverview favorites={favorites} pastBookings={pastBookings} />
+              <div className="space-y-6">
+                {/* Social Connections Component */}
+                <SocialConnections />
+                
+                {/* Other Overview Components */}
+                <ProfileOverview favorites={favorites} pastBookings={pastBookings} />
+              </div>
             </TabsContent>
             
             <TabsContent value="settings" className="animate-fade-in">

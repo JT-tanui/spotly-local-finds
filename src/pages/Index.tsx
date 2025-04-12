@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
@@ -12,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, List, Map as MapIcon, Calendar, Sparkles, Star } from 'lucide-react';
 import { useIsDesktop, useIsTablet, useIsMobile } from '@/hooks/useMediaQuery';
+import RecommendationEngine from '@/components/RecommendationEngine';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -29,8 +30,8 @@ const Index = () => {
   
   const isDesktop = useIsDesktop();
   const isTablet = useIsTablet();
+  const { isAuthenticated } = useAuth();
 
-  // Create trending places based on all places
   const trendingPlaces = React.useMemo(() => {
     return allPlaces
       .filter(p => p.rating >= 4.5)
@@ -38,12 +39,10 @@ const Index = () => {
       .slice(0, 5);
   }, [allPlaces]);
   
-  // Create new places - use first 3
   const newPlaces = React.useMemo(() => {
     return allPlaces.slice(0, 3);
   }, [allPlaces]);
   
-  // Create weekly picks - use places 6-10
   const weeklyPicks = React.useMemo(() => {
     return allPlaces.slice(6, 10);
   }, [allPlaces]);
@@ -77,18 +76,15 @@ const Index = () => {
       <Navbar location={location} onLocationClick={handleLocationClick} />
       
       <main className={`flex-1 pt-[62px] flex flex-col ${isDesktop ? 'px-6' : 'px-0'}`}>
-        {/* Hello Bar */}
         <div className="px-4 py-3">
           <h1 className="text-lg font-bold">Hey there, ready to discover?</h1>
           <p className="text-sm text-muted-foreground">Find amazing spots in {location?.city || "your area"}</p>
         </div>
         
-        {/* Search filters */}
         <div className="p-4 border-b">
           <SearchFilters onFilterChange={handleFilterChange} initialFilters={filterOptions} />
         </div>
         
-        {/* Category Pills - Horizontal Scrollable */}
         <div className="px-4 py-3 overflow-x-auto scrollbar-none">
           <div className="flex space-x-2">
             {categories.map((category) => (
@@ -107,7 +103,6 @@ const Index = () => {
           </div>
         </div>
         
-        {/* View mode toggle */}
         <div className="flex justify-between px-4 py-2 border-b items-center">
           <div className="flex items-center text-sm">
             <MapPin className="w-3 h-3 mr-1" />
@@ -136,7 +131,8 @@ const Index = () => {
 
         {viewMode === 'list' ? (
           <div className="flex-1 p-4 overflow-y-auto">
-            {/* Featured Carousel */}
+            <RecommendationEngine maxItems={3} className="mb-6" />
+            
             {featuredPlaces.length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
@@ -185,7 +181,6 @@ const Index = () => {
               </div>
             )}
             
-            {/* Trending This Week */}
             {trendingPlaces.length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
@@ -226,7 +221,6 @@ const Index = () => {
               </div>
             )}
             
-            {/* New This Week */}
             {newPlaces.length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
@@ -268,7 +262,6 @@ const Index = () => {
               </div>
             )}
             
-            {/* Weekly Picks by Spotly */}
             {weeklyPicks.length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
@@ -304,7 +297,6 @@ const Index = () => {
               </div>
             )}
             
-            {/* Places Near You */}
             <PlacesList 
               title="Places Near You" 
               places={places} 

@@ -15,6 +15,10 @@ import NotFound from "./pages/NotFound";
 import BottomNav from "./components/BottomNav";
 import TopNav from "./components/TopNav";
 import { useIsTablet, useIsDesktop } from "./hooks/useMediaQuery";
+import AuthContextProvider from "./contexts/AuthContext";
+import Auth from "./pages/Auth";
+import Onboarding from "./pages/Onboarding";
+import AppConfig from "./config";
 
 import "./index.css";
 
@@ -32,8 +36,10 @@ const AppRoutes = () => {
           <Route path="/place/:id" element={<PlaceDetails />} />
           <Route path="/bookings" element={<Bookings />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/events" element={<GroupEvents />} {/* Updated route */}
+          <Route path="/events" element={<GroupEvents />} />
           <Route path="/location" element={<LocationPicker />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/onboarding" element={<Onboarding />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         <BottomNav />
@@ -45,11 +51,13 @@ const AppRoutes = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner position="top-center" />
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <AuthContextProvider>
+        <Toaster />
+        <Sonner position="top-center" />
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthContextProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
