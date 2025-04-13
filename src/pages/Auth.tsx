@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,14 @@ const Auth = () => {
   const { signIn, signUp } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // If debug mode and dummy auth are enabled, pre-fill the credentials
+  useEffect(() => {
+    if (AppConfig.debug && AppConfig.useDummyAuth) {
+      setEmail(AppConfig.dummyAuthCredentials.email);
+      setPassword(AppConfig.dummyAuthCredentials.password);
+    }
+  }, []);
 
   // If skipAuthentication is true in debug mode, redirect to home with mock user
   if (AppConfig.skipAuthentication) {
@@ -63,6 +71,21 @@ const Auth = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // If in debug mode with dummy auth, bypass validation
+    if (AppConfig.debug && AppConfig.useDummyAuth) {
+      setIsLoading(true);
+      try {
+        await signIn(
+          AppConfig.dummyAuthCredentials.email, 
+          AppConfig.dummyAuthCredentials.password
+        );
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     if (!validateForm()) return;
     
     setIsLoading(true);
@@ -102,6 +125,12 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {AppConfig.debug && AppConfig.useDummyAuth && (
+            <div className="bg-amber-100 border border-amber-300 p-3 rounded-md text-sm mb-4">
+              <p className="font-medium text-amber-800">Debug Mode Active</p>
+              <p className="text-amber-700">Using dummy credentials for authentication.</p>
+            </div>
+          )}
           <Tabs 
             value={activeTab} 
             onValueChange={(v) => setActiveTab(v as "signin" | "signup")}

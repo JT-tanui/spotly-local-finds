@@ -136,6 +136,12 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
         return;
       }
       
+      if (AppConfig.debug && AppConfig.useDummyAuth) {
+        // Override credentials with dummy ones if in debug mode with dummy auth
+        email = AppConfig.dummyAuthCredentials.email;
+        password = AppConfig.dummyAuthCredentials.password;
+      }
+      
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       
       if (error) throw error;

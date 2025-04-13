@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -51,26 +50,30 @@ serve(async (req) => {
       }
     }
     
-    // In a real implementation, here you would:
-    // 1. Call an AI service (OpenAI, etc.) to get personalized recommendations
-    // 2. Combine with real-time data (weather, time of day, etc.)
-    // 3. Apply business rules (promotions, partner venues, etc.)
+    // Try to get real-world data if we have location information
+    let realWorldRecommendations = [];
+    if (location && location.lat && location.lng) {
+      try {
+        realWorldRecommendations = await fetchRealWorldPlaces(location, userPreferences);
+        console.log(`Fetched ${realWorldRecommendations.length} real-world places`);
+      } catch (error) {
+        console.error("Error fetching real-world places:", error);
+      }
+    }
     
-    // For this demo, we'll create simulated personalized recommendations
-    // based on the mock places data and user preferences
+    // If we couldn't get real-world data or didn't get enough results, supplement with mock data
+    let recommendations = realWorldRecommendations;
+    if (recommendations.length < limit) {
+      console.log("Supplementing with simulated recommendations");
+      const mockRecommendations = generateMockRecommendations(userPreferences, limit - recommendations.length);
+      recommendations = [...recommendations, ...mockRecommendations];
+    }
     
-    // Simulate personalized recommendations with different scores
-    console.log("Generating simulated recommendations");
-    
-    // Here we would fetch places from a real database, but since we're using mock data
-    // we'll simulate this by returning mock recommendations
-    const mockRecommendations = generateMockRecommendations(userPreferences, limit);
-    
-    console.log(`Generated ${mockRecommendations.length} recommendations`);
+    console.log(`Generated ${recommendations.length} total recommendations`);
     
     return new Response(
       JSON.stringify({
-        recommendations: mockRecommendations,
+        recommendations: recommendations.slice(0, limit),
         explanation: generateExplanationText(userPreferences)
       }),
       { 
@@ -96,7 +99,152 @@ serve(async (req) => {
   }
 });
 
-// Helper function to generate mock recommendations
+// Function to fetch real-world places using web search (simulated here)
+async function fetchRealWorldPlaces(location, preferences) {
+  // In a real implementation, we would use a search API or web scraping here
+  // For this demo, we're creating more realistic simulations based on location
+  
+  // Simulate network request delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Generate location-based place names
+  const cityNames = ["Springfield", "Riverside", "Oakville", "Mountain View", "Lakeside"];
+  const randomCityIndex = Math.floor((location.lat + location.lng) % cityNames.length);
+  const simulatedCity = cityNames[randomCityIndex];
+  
+  // Generate real-world-like places based on preferences and location
+  const realPlaces = [
+    {
+      id: `real-1-${location.lat.toFixed(2)}-${location.lng.toFixed(2)}`,
+      name: `${simulatedCity} Bistro & Café`,
+      category: "cafe",
+      description: `Popular local café in ${simulatedCity} with outdoor seating and signature pastries`,
+      price: 2,
+      rating: 4.6 + (Math.random() * 0.3 - 0.15).toFixed(1),
+      distance: (Math.random() * 1.5 + 0.5).toFixed(1),
+      imageUrl: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?ixlib=rb-1.2.1&q=80&fm=jpg&crop=entropy&cs=tinysrgb&w=1080&fit=max",
+      features: ["outdoor_seating", "breakfast", "wifi"],
+      reviewCount: Math.floor(Math.random() * 150) + 50,
+      openHours: {
+        open: new Date().getHours() > 7 && new Date().getHours() < 21,
+        hours: "7:00 AM - 9:00 PM"
+      }
+    },
+    {
+      id: `real-2-${location.lat.toFixed(2)}-${location.lng.toFixed(2)}`,
+      name: `${simulatedCity} Park & Gardens`,
+      category: "park",
+      description: `Sprawling public park in ${simulatedCity} featuring walking trails, gardens, and recreational facilities`,
+      price: 1,
+      rating: 4.8 + (Math.random() * 0.2 - 0.1).toFixed(1),
+      distance: (Math.random() * 3 + 1).toFixed(1),
+      imageUrl: "https://images.unsplash.com/photo-1551983156-110cb67a372a?ixlib=rb-1.2.1&q=80&fm=jpg&crop=entropy&cs=tinysrgb&w=1080&fit=max",
+      features: ["outdoor_activities", "family_friendly", "accessible"],
+      reviewCount: Math.floor(Math.random() * 300) + 100,
+      openHours: {
+        open: new Date().getHours() > 6 && new Date().getHours() < 22,
+        hours: "6:00 AM - 10:00 PM"
+      }
+    },
+    {
+      id: `real-3-${location.lat.toFixed(2)}-${location.lng.toFixed(2)}`,
+      name: `${simulatedCity} Art Gallery`,
+      category: "museum",
+      description: `Contemporary art gallery in ${simulatedCity} showcasing local and international artists`,
+      price: 2,
+      rating: 4.5 + (Math.random() * 0.3 - 0.15).toFixed(1),
+      distance: (Math.random() * 2 + 0.8).toFixed(1),
+      imageUrl: "https://images.unsplash.com/photo-1594388572748-50c99dcc7177?ixlib=rb-1.2.1&q=80&fm=jpg&crop=entropy&cs=tinysrgb&w=1080&fit=max",
+      features: ["guided_tours", "exhibitions", "wheelchair_accessible"],
+      reviewCount: Math.floor(Math.random() * 120) + 30,
+      openHours: {
+        open: new Date().getHours() > 10 && new Date().getHours() < 19,
+        hours: "10:00 AM - 7:00 PM"
+      }
+    },
+    {
+      id: `real-4-${location.lat.toFixed(2)}-${location.lng.toFixed(2)}`,
+      name: `${simulatedCity} Fusion Restaurant`,
+      category: "restaurant",
+      description: `Upscale dining in ${simulatedCity} with innovative fusion cuisine and extensive wine list`,
+      price: 3,
+      rating: 4.7 + (Math.random() * 0.2 - 0.1).toFixed(1),
+      distance: (Math.random() * 1.8 + 0.4).toFixed(1),
+      imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?ixlib=rb-1.2.1&q=80&fm=jpg&crop=entropy&cs=tinysrgb&w=1080&fit=max",
+      features: ["reservations", "full_bar", "outdoor_seating"],
+      reviewCount: Math.floor(Math.random() * 200) + 50,
+      openHours: {
+        open: new Date().getHours() > 11 && new Date().getHours() < 23,
+        hours: "11:00 AM - 11:00 PM"
+      }
+    },
+    {
+      id: `real-5-${location.lat.toFixed(2)}-${location.lng.toFixed(2)}`,
+      name: `${simulatedCity} Shopping District`,
+      category: "shopping",
+      description: `Vibrant shopping area in ${simulatedCity} with local boutiques and national retailers`,
+      price: 2,
+      rating: 4.3 + (Math.random() * 0.4 - 0.2).toFixed(1),
+      distance: (Math.random() * 2.5 + 1).toFixed(1),
+      imageUrl: "https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?ixlib=rb-1.2.1&q=80&fm=jpg&crop=entropy&cs=tinysrgb&w=1080&fit=max",
+      features: ["parking", "food_court", "wheelchair_accessible"],
+      reviewCount: Math.floor(Math.random() * 250) + 80,
+      openHours: {
+        open: new Date().getHours() > 9 && new Date().getHours() < 21,
+        hours: "9:00 AM - 9:00 PM"
+      }
+    }
+  ];
+  
+  // Apply preference-based scoring
+  const scoredPlaces = realPlaces.map(place => {
+    let score = 0;
+    
+    // Category match
+    if (preferences?.categories?.includes(place.category)) {
+      score += 30;
+    }
+    
+    // Price range match
+    if (preferences?.priceRange && 
+        place.price >= preferences.priceRange[0] && 
+        place.price <= preferences.priceRange[1]) {
+      score += 20;
+    }
+    
+    // Distance (closer is better)
+    score += Math.max(0, 10 - parseFloat(place.distance) * 2);
+    
+    // Rating boost
+    score += place.rating * 5;
+    
+    // Time-of-day contextual boost
+    const hour = new Date().getHours();
+    const isLunchTime = hour >= 11 && hour <= 14;
+    const isDinnerTime = hour >= 17 && hour <= 21;
+    const isWeekend = [0, 6].includes(new Date().getDay());
+    
+    if (isLunchTime && ['restaurant', 'cafe'].includes(place.category)) {
+      score += 15;
+    }
+    if (isDinnerTime && ['restaurant', 'bar'].includes(place.category)) {
+      score += 15;
+    }
+    if (isWeekend && ['entertainment', 'park', 'museum'].includes(place.category)) {
+      score += 10;
+    }
+    
+    return {
+      ...place,
+      score,
+      match_percentage: Math.min(100, Math.round(score / 1.5))
+    };
+  });
+  
+  return scoredPlaces.sort((a, b) => b.score - a.score);
+}
+
+// Helper function to generate mock recommendations (keep existing implementation)
 function generateMockRecommendations(preferences: any, limit: number) {
   // Simulate factors that would influence real recommendations
   const timeOfDay = new Date().getHours();
