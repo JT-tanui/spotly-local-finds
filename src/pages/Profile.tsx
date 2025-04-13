@@ -16,7 +16,7 @@ import SettingsTab from '@/components/SettingsTab';
 import HelpTab from '@/components/HelpTab';
 import SocialConnections from '@/components/SocialConnections';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuthContext';
 import RecommendationEngine from '@/components/RecommendationEngine';
 
 const Profile = () => {

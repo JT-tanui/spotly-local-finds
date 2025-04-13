@@ -1,13 +1,15 @@
 
-import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Session, User } from '@supabase/supabase-js';
 import AppConfig from '../config';
 import { UserProfile } from '@/types';
+import { mockUser, mockProfile, fetchUserProfile } from '@/utils/authUtils';
+import { signInWithEmailAndPassword, signUpWithEmailAndPassword, signOut as authSignOut } from '@/services/authService';
 
-interface AuthContextType {
+export interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: UserProfile | null;
@@ -19,30 +21,7 @@ interface AuthContextType {
   setProfile: (profile: UserProfile) => void;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
-
-// Mock user for development
-const mockUser = {
-  id: "mock-user-id",
-  email: "sarah@example.com",
-};
-
-const mockProfile = {
-  id: "mock-user-id",
-  full_name: "Sarah Johnson",
-  email: "sarah@example.com",
-  phone: "+1 (555) 123-4567",
-  avatar_url: "https://i.pravatar.cc/150?img=23",
-  created_at: new Date("2023-11-01").toISOString(),
-};
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === null) {
-    throw new Error('useAuth must be used within an AuthContextProvider');
-  }
-  return context;
-}
+export const AuthContext = createContext<AuthContextType | null>(null);
 
 interface AuthContextProviderProps {
   children: React.ReactNode;
@@ -59,21 +38,10 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
 
   const isAuthenticated = !!session || (AppConfig.skipAuthentication && !!mockUser);
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) throw error;
-      
-      if (data) {
-        setProfile(data as UserProfile);
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
+  const fetchProfileCallback = useCallback(async (userId: string) => {
+    const profileData = await fetchUserProfile(userId);
+    if (profileData) {
+      setProfile(profileData);
     }
   }, []);
 
@@ -100,7 +68,7 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
             if (currentSession?.user) {
               // Use setTimeout to prevent deadlock with Supabase client
               setTimeout(() => {
-                fetchProfile(currentSession.user.id);
+                fetchProfileCallback(currentSession.user.id);
               }, 0);
             }
           }
@@ -112,7 +80,7 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
         setUser(existingSession?.user ?? null);
         
         if (existingSession?.user) {
-          await fetchProfile(existingSession.user.id);
+          await fetchProfileCallback(existingSession.user.id);
         }
 
         return () => subscription.unsubscribe();
@@ -124,7 +92,7 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
     };
 
     initAuth();
-  }, [fetchProfile]);
+  }, [fetchProfileCallback]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -136,13 +104,7 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
         return;
       }
       
-      if (AppConfig.debug && AppConfig.useDummyAuth) {
-        // Override credentials with dummy ones if in debug mode with dummy auth
-        email = AppConfig.dummyAuthCredentials.email;
-        password = AppConfig.dummyAuthCredentials.password;
-      }
-      
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await signInWithEmailAndPassword(email, password);
       
       if (error) throw error;
       
@@ -174,13 +136,7 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
         return;
       }
       
-      const { data, error } = await supabase.auth.signUp({ 
-        email, 
-        password,
-        options: {
-          data: metadata
-        }
-      });
+      const { data, error } = await signUpWithEmailAndPassword(email, password, metadata);
       
       if (error) throw error;
       
@@ -211,7 +167,7 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
         return;
       }
       
-      const { error } = await supabase.auth.signOut();
+      const { error } = await authSignOut();
       
       if (error) throw error;
       
@@ -235,7 +191,6 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
     }
   };
 
-  // Create the context value object with all required properties
   const contextValue: AuthContextType = {
     user,
     session,

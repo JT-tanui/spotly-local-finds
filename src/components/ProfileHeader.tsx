@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { User, Mail, Phone, Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,7 @@ import { CardTitle, CardDescription, CardHeader, CardContent, CardFooter, Card }
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { UserProfile } from '@/types';
+import { useAuth } from '@/hooks/useAuthContext';
 
 interface ProfileHeaderProps {
   user: UserProfile;
@@ -16,14 +16,14 @@ interface ProfileHeaderProps {
 const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user, onEditProfile }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signOut } = useAuth();
 
   const handleSignOut = async () => {
-    // In a real app, this would call your auth signout method
+    await signOut();
     toast({
       title: "Signed out successfully",
       description: "You have been signed out of your account.",
     });
-    // Redirect to home page after signout
     setTimeout(() => navigate('/'), 1000);
   };
 
