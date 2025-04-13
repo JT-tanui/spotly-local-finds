@@ -52,13 +52,13 @@ const AppRoutes = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
-      <TooltipProvider>
-        <AuthContextProvider>
+      <AuthContextProvider>
+        <TooltipProvider delayDuration={300}>
           <Toaster />
           <Sonner position="top-center" />
           <AppRoutes />
-        </AuthContextProvider>
-      </TooltipProvider>
+        </TooltipProvider>
+      </AuthContextProvider>
     </BrowserRouter>
   </QueryClientProvider>
 );
