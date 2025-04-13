@@ -1,157 +1,124 @@
 
-import React, { useState, useEffect } from 'react';
-import { Settings } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useIsDesktop, useIsTablet, useIsMobile } from '@/hooks/useMediaQuery';
-import { usePlaces } from '@/hooks/usePlaces';
-import { useLocation } from '@/hooks/useLocation';
-import { UserProfile } from '@/types';
-import ProfileHeader from '@/components/ProfileHeader';
-import ProfileStats from '@/components/ProfileStats';
-import QuickActions from '@/components/QuickActions';
-import ReferralCard from '@/components/ReferralCard';
-import ProfileOverview from '@/components/ProfileOverview';
-import SettingsTab from '@/components/SettingsTab';
-import HelpTab from '@/components/HelpTab';
-import SocialConnections from '@/components/SocialConnections';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuthContext';
-import RecommendationEngine from '@/components/RecommendationEngine';
+import React, { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ProfileHeader from "@/components/ProfileHeader";
+import ProfileOverview from "@/components/ProfileOverview";
+import ProfileStats from "@/components/ProfileStats";
+import QuickActions from "@/components/QuickActions";
+import SocialConnections from "@/components/SocialConnections";
+import SettingsTab from "@/components/SettingsTab";
+import HelpTab from "@/components/HelpTab";
+import NotificationPreferences from "@/components/NotificationPreferences";
+import { AlertCircle } from "lucide-react";
+import { useAuth } from "@/hooks/useAuthContext";
+import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { useNotifications } from '@/hooks/useNotifications';
 
 const Profile = () => {
-  const isDesktop = useIsDesktop();
-  const isTablet = useIsTablet();
+  const { user, profile, isLoading } = useAuth();
   const isMobile = useIsMobile();
-  const { location } = useLocation();
-  const { featuredPlaces, allPlaces } = usePlaces(location);
+  const isTablet = useIsTablet();
   const { toast } = useToast();
-  const { user, profile } = useAuth();
-  
+  const { sendMessageNotification, sendEventReminderNotification } = useNotifications();
   const [activeTab, setActiveTab] = useState("overview");
-  const [loading, setLoading] = useState(true);
   
-  // Mock stats data - in a real app, this would come from the backend
-  const profileStats = {
-    bookingsCount: 12,
-    savedCount: 8,
-    freeReservations: 1,
-    loyaltyPoints: 350,
-    referralCode: "SARAH-2025"
+  // For testing notifications
+  const testMessageNotification = () => {
+    sendMessageNotification(
+      "Test User",
+      "This is a test message notification. It demonstrates how push notifications work.",
+      "https://i.pravatar.cc/150?img=3"
+    );
+    
+    toast({
+      title: "Test Notification Sent",
+      description: "Check your device notifications"
+    });
   };
   
-  // Use first 3 places as mock favorites
-  const [favorites] = useState(featuredPlaces?.slice(0, 3) || []);
-  const [pastBookings] = useState(allPlaces?.slice(0, 2) || []);
-
-  useEffect(() => {
-    if (profile) {
-      setLoading(false);
-    }
-  }, [profile]);
+  const testEventNotification = () => {
+    sendEventReminderNotification(
+      "Weekend Hiking Trip",
+      "Tomorrow at 9:00 AM",
+      "event-123"
+    );
+    
+    toast({
+      title: "Test Event Reminder Sent",
+      description: "Check your device notifications"
+    });
+  };
+  
+  if (!user) {
+    return (
+      <div className="p-4 min-h-[80vh] flex flex-col justify-center items-center text-center">
+        <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+        <h2 className="text-2xl font-bold mb-2">Sign In Required</h2>
+        <p className="text-muted-foreground mb-4">
+          You need to be signed in to view your profile.
+        </p>
+        <Button asChild>
+          <a href="/auth">Sign In</a>
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className={`${isMobile ? 'pt-[10px]' : 'pt-[62px]'} pb-20 ${isDesktop ? 'px-8' : 'px-4'}`}>
-      {/* Page Header - Desktop Only */}
-      {!isMobile && (
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">My Profile</h1>
-          <Button variant="ghost" size="sm" onClick={() => setActiveTab("settings")}>
-            <Settings className="h-4 w-4 mr-1" />
-            Settings
-          </Button>
-        </div>
-      )}
+    <div className={`pt-4 px-4 pb-20 ${isMobile ? '' : 'pt-[60px]'}`}>
+      <ProfileHeader user={profile} isLoading={isLoading} />
       
-      {/* Mobile Header */}
-      {isMobile && (
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold">My Profile</h1>
-          <Button variant="ghost" size="icon" onClick={() => setActiveTab("settings")}>
-            <Settings className="h-5 w-5" />
-          </Button>
-        </div>
-      )}
-      
-      {/* Main Content - Responsive Layout */}
-      <div className={`${isDesktop ? 'grid grid-cols-3 gap-6' : 'flex flex-col gap-4'}`}>
-        {/* Left Column (Profile Card, Stats) */}
-        <div className={`${isDesktop ? 'col-span-1' : ''}`}>
-          {loading ? (
-            <div className="animate-pulse space-y-4">
-              <div className="h-40 bg-slate-200 rounded-lg"></div>
-              <div className="h-20 bg-slate-200 rounded-lg"></div>
-              <div className="h-20 bg-slate-200 rounded-lg"></div>
-            </div>
-          ) : (
-            <>
-              {profile && (
-                <ProfileHeader 
-                  user={profile} 
-                  onEditProfile={() => setActiveTab("settings")} 
-                />
-              )}
-              
-              <ProfileStats
-                bookingsCount={profileStats.bookingsCount}
-                savedCount={profileStats.savedCount}
-                freeReservations={profileStats.freeReservations}
-                loyaltyPoints={profileStats.loyaltyPoints}
-              />
-              
-              <QuickActions />
-              
-              {/* Referral Card - Desktop and Tablet Only */}
-              {(isDesktop || isTablet) && (
-                <ReferralCard referralCode={profileStats.referralCode} />
-              )}
-
-              {/* Recommendations - Mobile Only */}
-              {isMobile && profile && (
-                <RecommendationEngine 
-                  userId={profile.id}
-                  location={location}
-                  maxItems={2}
-                  className="mb-6"
-                />
-              )}
-            </>
-          )}
-        </div>
-        
-        {/* Right/Main Column (Content) */}
-        <div className={`${isDesktop ? 'col-span-2' : ''}`}>
-          {/* Tabs for profile content */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+      <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-3">
+        <div className="col-span-1 lg:col-span-2">
+          <Tabs 
+            value={activeTab} 
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
+            <TabsList className={`${isMobile ? 'grid grid-cols-3' : isTablet ? 'grid grid-cols-4' : ''}`}>
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="connections">Connections</TabsTrigger>
+              <TabsTrigger value="notifications">Notifications</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
-              <TabsTrigger value="help">Help</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="overview" className="animate-fade-in">
-              <div className="space-y-6">
-                {/* Social Connections Component */}
-                <SocialConnections />
-                
-                {/* Other Overview Components */}
-                <ProfileOverview favorites={favorites} pastBookings={pastBookings} />
-
-                {/* Referral Card - Mobile Only */}
-                {isMobile && (
-                  <ReferralCard referralCode={profileStats.referralCode} />
-                )}
+            <TabsContent value="overview" className="space-y-6">
+              <ProfileOverview />
+              <ProfileStats />
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold mb-2">Test Notifications</h3>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={testMessageNotification}>
+                    Test Message Notification
+                  </Button>
+                  <Button variant="outline" onClick={testEventNotification}>
+                    Test Event Reminder
+                  </Button>
+                </div>
               </div>
             </TabsContent>
             
-            <TabsContent value="settings" className="animate-fade-in">
-              <SettingsTab />
+            <TabsContent value="connections">
+              <SocialConnections />
             </TabsContent>
             
-            <TabsContent value="help" className="animate-fade-in">
-              <HelpTab />
+            <TabsContent value="notifications">
+              <NotificationPreferences />
+            </TabsContent>
+            
+            <TabsContent value="settings">
+              <SettingsTab />
+              <div className="mt-6">
+                <HelpTab />
+              </div>
             </TabsContent>
           </Tabs>
+        </div>
+        
+        <div className="lg:col-span-1 space-y-6">
+          <QuickActions />
         </div>
       </div>
     </div>

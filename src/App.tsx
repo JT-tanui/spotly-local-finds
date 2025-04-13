@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,6 +19,8 @@ import { useIsTablet, useIsDesktop } from "./hooks/useMediaQuery";
 import AuthContextProvider from "./contexts/AuthContext";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
+import { notificationService } from "./services/notificationService";
+import { PushNotificationHelper } from "./services/pushNotificationHelper";
 
 import "./index.css";
 
@@ -26,6 +28,30 @@ const queryClient = new QueryClient();
 
 const AppRoutes = () => {
   const isTabletOrDesktop = useIsTablet() || useIsDesktop();
+  
+  useEffect(() => {
+    // Initialize notifications when the app starts
+    const initNotifications = async () => {
+      await notificationService.init();
+      PushNotificationHelper.loadScheduledReminders();
+    };
+    
+    initNotifications();
+    
+    // Add visibility change listener to detect when app comes to foreground
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // App came to foreground, update scheduled reminders
+        PushNotificationHelper.loadScheduledReminders();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
   
   return (
     <>

@@ -1,314 +1,310 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Users, Calendar, PlusCircle, Filter, ArrowDownAZ, MapPin, Clock, PartyPopper } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
-import { Event } from '@/types';
-import { supabase, mapDbEventToEvent } from '@/integrations/supabase/client';
-import EventCard from '@/components/EventCard';
-import CreateEventModal from '@/components/CreateEventModal';
-import { useLocation } from '@/hooks/useLocation';
-import { usePlaces } from '@/hooks/usePlaces';
-import { useIsMobile } from '@/hooks/useMediaQuery';
+import { Button } from "@/components/ui/button";
+import { Calendar, Filter, Plus, Bell } from "lucide-react";
+import EventCard from "@/components/EventCard";
+import CreateEventModal from "@/components/CreateEventModal";
+import EventDetailsModal from "@/components/EventDetailsModal";
+import EmptyState from "@/components/EmptyState";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { useNotifications } from '@/hooks/useNotifications';
+import { PushNotificationHelper } from '@/services/pushNotificationHelper';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useIsDesktop } from '@/hooks/useMediaQuery';
 
-type SortOption = 'recent' | 'date' | 'alphabetical';
+interface Event {
+  id: string;
+  title: string;
+  description: string;
+  event_date: string;
+  place_id: string;
+  creator_id: string;
+  status: string;
+  max_participants: number;
+  creator?: {
+    full_name: string;
+    avatar_url?: string;
+  };
+  place?: any; // You can define a proper type for place if needed
+  participants_count?: number;
+}
 
 const GroupEvents = () => {
-  const navigate = useNavigate();
-  const { location } = useLocation();
-  const { allPlaces } = usePlaces(location);
-  const { toast } = useToast();
-  const isMobile = useIsMobile();
-  
   const [events, setEvents] = useState<Event[]>([]);
   const [myEvents, setMyEvents] = useState<Event[]>([]);
-  const [invitedEvents, setInvitedEvents] = useState<Event[]>([]);
-  const [sortBy, setSortBy] = useState<SortOption>('date');
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [pastEvents, setPastEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchEvents();
-  }, []);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [filter, setFilter] = useState<'upcoming' | 'my-events' | 'past'>('upcoming');
+  const [scheduleNotification, setScheduleNotification] = useState(true);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const isDesktop = useIsDesktop();
+  const { permissionStatus, requestPermission } = useNotifications();
 
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const { data: currentUser } = await supabase.auth.getUser();
+      // Fetch upcoming events
+      const { data: upcomingData, error: upcomingError } = await supabase
+        .from('events')
+        .select(`
+          *,
+          creator:profiles!creator_id(full_name, avatar_url),
+          participants_count:event_participants(count)
+        `)
+        .gte('event_date', new Date().toISOString())
+        .order('event_date', { ascending: true });
+
+      if (upcomingError) throw upcomingError;
+
+      // Fetch past events
+      const { data: pastData, error: pastError } = await supabase
+        .from('events')
+        .select(`
+          *,
+          creator:profiles!creator_id(full_name, avatar_url),
+          participants_count:event_participants(count)
+        `)
+        .lt('event_date', new Date().toISOString())
+        .order('event_date', { ascending: false })
+        .limit(10);
+
+      if (pastError) throw pastError;
       
-      if (!currentUser?.user) {
-        // For demo, load mock data if user is not authenticated
-        const mockEvents: Event[] = [
-          {
-            id: '1',
-            creator_id: 'mock-user',
-            place_id: '1',
-            title: 'Weekend Hiking Trip',
-            description: 'Join us for a fun day hiking in the mountains!',
-            event_date: new Date(Date.now() + 86400000 * 3).toISOString(),
-            created_at: new Date().toISOString(),
-            status: 'active',
-            participants: [
-              { id: '1', event_id: '1', user_id: 'mock-user', status: 'accepted', created_at: new Date().toISOString() },
-              { id: '2', event_id: '1', user_id: 'friend1', status: 'accepted', created_at: new Date().toISOString() }
-            ]
-          },
-          {
-            id: '2',
-            creator_id: 'friend1',
-            place_id: '3',
-            title: 'Coffee Meetup',
-            description: 'Let\'s catch up over coffee',
-            event_date: new Date(Date.now() + 86400000 * 1).toISOString(),
-            created_at: new Date().toISOString(),
-            status: 'active'
-          }
-        ];
-        setEvents(mockEvents);
-        setLoading(false);
-        return;
+      let myEventsList: Event[] = [];
+      
+      if (user) {
+        // Fetch events where user is a participant
+        const { data: myData, error: myError } = await supabase
+          .from('event_participants')
+          .select(`
+            event:events(
+              *,
+              creator:profiles!creator_id(full_name, avatar_url),
+              participants_count:event_participants(count)
+            )
+          `)
+          .eq('user_id', user.id);
+
+        if (myError) throw myError;
+        
+        myEventsList = myData
+          ?.map(item => item.event as Event)
+          .filter(Boolean)
+          .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime()) || [];
       }
       
-      // Fetch events with participants
-      const { data: eventsData, error: eventsError } = await supabase
-        .from('events')
-        .select('*');
-        
-      if (eventsError) throw eventsError;
+      // Process the data
+      setEvents(upcomingData || []);
+      setPastEvents(pastData || []);
+      setMyEvents(myEventsList);
       
-      // Fetch participants for events
-      const { data: participantsData, error: participantsError } = await supabase
-        .from('event_participants')
-        .select('*');
-        
-      if (participantsError) throw participantsError;
-      
-      // Map participants to their events
-      const eventsWithParticipants = eventsData.map(event => {
-        const eventParticipants = participantsData.filter(p => p.event_id === event.id);
-        return { ...event, participants: eventParticipants };
-      });
-      
-      // Enrich events with place data and ensure types match
-      const enrichedEvents: Event[] = eventsWithParticipants.map(event => mapDbEventToEvent(event, allPlaces));
-      
-      setEvents(enrichedEvents);
-      
-      // Filter events created by current user
-      const userCreatedEvents = enrichedEvents.filter(
-        event => event.creator_id === currentUser.user.id
-      );
-      setMyEvents(userCreatedEvents);
-      
-      // Filter events user is invited to but didn't create
-      const userInvitedEvents = enrichedEvents.filter(
-        event => event.creator_id !== currentUser.user.id && 
-        event.participants?.some(
-          participant => participant.user_id === currentUser.user.id
-        )
-      );
-      setInvitedEvents(userInvitedEvents);
-      
-    } catch (error) {
-      console.error('Error fetching events:', error);
+      // Schedule notifications for upcoming events
+      if (permissionStatus === 'granted') {
+        (upcomingData || []).forEach(event => {
+          PushNotificationHelper.scheduleEventReminder(event);
+        });
+      }
+    } catch (error: any) {
+      console.error("Error loading events:", error);
       toast({
-        title: "Error fetching events",
-        description: "Please try again later",
+        title: "Error",
+        description: "Failed to load events. Please try again.",
         variant: "destructive"
       });
+      
+      // Use empty arrays as fallbacks
+      setEvents([]);
+      setPastEvents([]);
+      setMyEvents([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const sortEvents = (eventsToSort: Event[]) => {
-    if (!eventsToSort.length) return [];
+  useEffect(() => {
+    fetchEvents();
+  }, [user]);
+
+  const handleEventCreated = (newEvent: Event) => {
+    setEvents(prev => [newEvent, ...prev].sort((a, b) => 
+      new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
+    ));
     
-    const sorted = [...eventsToSort];
-    
-    switch (sortBy) {
-      case 'date':
-        return sorted.sort((a, b) => 
-          new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
-        );
-      case 'alphabetical':
-        return sorted.sort((a, b) => a.title.localeCompare(b.title));
-      case 'recent':
-      default:
-        return sorted.sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
+    if (scheduleNotification && permissionStatus === 'granted') {
+      PushNotificationHelper.scheduleEventReminder(newEvent);
+      toast({
+        title: "Reminder scheduled",
+        description: "You'll receive a notification before the event starts."
+      });
+    } else if (scheduleNotification && permissionStatus !== 'granted') {
+      requestPermission().then(granted => {
+        if (granted) {
+          PushNotificationHelper.scheduleEventReminder(newEvent);
+          toast({
+            title: "Reminder scheduled",
+            description: "You'll receive a notification before the event starts."
+          });
+        }
+      });
     }
   };
-  
-  const handleEventCreated = (newEvent: Event) => {
-    setEvents(prev => [...prev, newEvent]);
-    setMyEvents(prev => [...prev, newEvent]);
-    fetchEvents(); // Refresh all data
-    toast({
-      title: "Event Created",
-      description: "Your event was successfully created",
-    });
-  };
-  
-  const handleCreateEvent = () => {
-    setIsCreateModalOpen(true);
+
+  const handleOpenEventDetails = (event: Event) => {
+    setSelectedEvent(event);
+    setDetailsModalOpen(true);
   };
 
+  const handleEnableReminders = () => {
+    requestPermission().then(granted => {
+      if (granted) {
+        // Schedule reminders for all upcoming events
+        events.forEach(event => {
+          PushNotificationHelper.scheduleEventReminder(event);
+        });
+        
+        toast({
+          title: "Event reminders enabled",
+          description: "You'll receive notifications before events start."
+        });
+      }
+    });
+  };
+
+  const filteredEvents = () => {
+    switch (filter) {
+      case 'my-events':
+        return myEvents;
+      case 'past':
+        return pastEvents;
+      case 'upcoming':
+      default:
+        return events;
+    }
+  };
+
+  const displayEvents = filteredEvents();
+
   return (
-    <div className={`${isMobile ? 'pt-4' : 'pt-[62px]'} pb-20 px-4`}>
-      <h1 className="text-2xl font-bold mb-4">Group Events</h1>
-      
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex space-x-2 overflow-x-auto pb-1 scrollbar-none">
-          <Button 
-            size="sm" 
-            variant={sortBy === 'date' ? 'default' : 'outline'}
-            className="rounded-full text-xs"
-            onClick={() => setSortBy('date')}
-          >
-            <Calendar className="w-3 h-3 mr-1" />
-            By Date
-          </Button>
-          <Button 
-            size="sm" 
-            variant={sortBy === 'recent' ? 'default' : 'outline'}
-            className="rounded-full text-xs"
-            onClick={() => setSortBy('recent')}
-          >
-            <Clock className="w-3 h-3 mr-1" />
-            Recent
-          </Button>
-          <Button 
-            size="sm" 
-            variant={sortBy === 'alphabetical' ? 'default' : 'outline'}
-            className="rounded-full text-xs"
-            onClick={() => setSortBy('alphabetical')}
-          >
-            <ArrowDownAZ className="w-3 h-3 mr-1" />
-            A-Z
-          </Button>
+    <div className={`pt-4 px-4 pb-20 ${isDesktop ? 'pt-[60px]' : ''}`}>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Group Events</h1>
+          <p className="text-muted-foreground">Find and join local experiences</p>
         </div>
         
-        <Button onClick={handleCreateEvent} size="sm" className="rounded-full">
-          <PlusCircle className="w-4 h-4 mr-1" />
-          New Event
-        </Button>
+        <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-2">
+          <Button 
+            onClick={handleEnableReminders}
+            variant="outline"
+            disabled={permissionStatus === 'granted'}
+          >
+            <Bell className="mr-2 h-4 w-4" />
+            {permissionStatus === 'granted' ? 'Reminders Enabled' : 'Enable Reminders'}
+          </Button>
+          <Button onClick={() => setCreateModalOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Event
+          </Button>
+        </div>
       </div>
       
-      <Tabs defaultValue="all">
-        <TabsList className="grid w-full grid-cols-3 mb-4">
-          <TabsTrigger value="all">All Events</TabsTrigger>
-          <TabsTrigger value="mine">My Events</TabsTrigger>
-          <TabsTrigger value="invited">Invitations</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="all">
-          {loading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading events...</p>
+      <div className="flex justify-between items-center mb-6">
+        <Select
+          value={filter}
+          onValueChange={(value) => setFilter(value as any)}
+        >
+          <SelectTrigger className="w-[180px]">
+            <div className="flex items-center">
+              <Filter className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Filter events" />
             </div>
-          ) : events.length > 0 ? (
-            <div className="space-y-4">
-              {sortEvents(events).map(event => (
-                <EventCard 
-                  key={event.id} 
-                  event={event} 
-                  places={allPlaces} 
-                  onUpdateEvent={fetchEvents}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 bg-background rounded-2xl border shadow-sm">
-              <PartyPopper className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 font-medium">No events found</h3>
-              <p className="text-sm text-muted-foreground">
-                Create your first event or get invited to one
-              </p>
-              <Button 
-                onClick={handleCreateEvent}
-                variant="outline"
-                className="mt-4 rounded-full"
-              >
-                Create Event
-              </Button>
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="mine">
-          {loading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading your events...</p>
-            </div>
-          ) : myEvents.length > 0 ? (
-            <div className="space-y-4">
-              {sortEvents(myEvents).map(event => (
-                <EventCard 
-                  key={event.id} 
-                  event={event} 
-                  places={allPlaces}
-                  isOwner={true}
-                  onUpdateEvent={fetchEvents}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 bg-background rounded-2xl border shadow-sm">
-              <Users className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 font-medium">You haven't created any events</h3>
-              <p className="text-sm text-muted-foreground">
-                Create your first event and invite friends
-              </p>
-              <Button 
-                onClick={handleCreateEvent}
-                variant="outline"
-                className="mt-4 rounded-full"
-              >
-                Create Event
-              </Button>
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="invited">
-          {loading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading your invitations...</p>
-            </div>
-          ) : invitedEvents.length > 0 ? (
-            <div className="space-y-4">
-              {sortEvents(invitedEvents).map(event => (
-                <EventCard 
-                  key={event.id} 
-                  event={event} 
-                  places={allPlaces}
-                  onUpdateEvent={fetchEvents}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 bg-background rounded-2xl border shadow-sm">
-              <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 font-medium">No invitations yet</h3>
-              <p className="text-sm text-muted-foreground">
-                When you're invited to events, they'll appear here
-              </p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="upcoming">Upcoming Events</SelectItem>
+            <SelectItem value="my-events">My Events</SelectItem>
+            <SelectItem value="past">Past Events</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       
-      {/* Create Event Modal */}
-      {isCreateModalOpen && (
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="border rounded-lg p-4 h-64 animate-pulse">
+              <div className="w-2/3 h-4 bg-gray-200 rounded mb-4"></div>
+              <div className="w-full h-24 bg-gray-200 rounded mb-4"></div>
+              <div className="w-1/2 h-4 bg-gray-200 rounded mb-2"></div>
+              <div className="w-1/3 h-4 bg-gray-200 rounded mb-4"></div>
+              <div className="flex justify-between">
+                <div className="w-1/4 h-8 bg-gray-200 rounded"></div>
+                <div className="w-1/4 h-8 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : displayEvents.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {displayEvents.map(event => (
+            <EventCard 
+              key={event.id}
+              event={event}
+              onClick={() => handleOpenEventDetails(event)}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={Calendar}
+          title={
+            filter === 'my-events'
+              ? "You haven't joined any events"
+              : filter === 'past'
+              ? "No past events found"
+              : "No upcoming events found"
+          }
+          description={
+            filter === 'my-events'
+              ? "Join an event or create your own to get started"
+              : filter === 'past'
+              ? "Check back later for past event history"
+              : "Create an event to get started"
+          }
+          action={{
+            label: "Create Event",
+            onClick: () => setCreateModalOpen(true)
+          }}
+          className="py-12"
+        />
+      )}
+      
+      {createModalOpen && (
         <CreateEventModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
+          open={createModalOpen}
+          onOpenChange={setCreateModalOpen}
           onEventCreated={handleEventCreated}
-          places={allPlaces}
+          scheduleNotification={scheduleNotification}
+          onToggleNotification={setScheduleNotification}
+        />
+      )}
+      
+      {selectedEvent && (
+        <EventDetailsModal
+          open={detailsModalOpen}
+          onOpenChange={setDetailsModalOpen}
+          event={selectedEvent}
+          onEventUpdated={fetchEvents}
         />
       )}
     </div>
