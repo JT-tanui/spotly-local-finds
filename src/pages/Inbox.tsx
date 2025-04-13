@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useIsDesktop, useIsTablet, useIsMobile } from '@/hooks/useMediaQuery';
 import { Bell, MessageSquare, Users, Search } from 'lucide-react';

@@ -5,7 +5,7 @@ import { Home, CalendarDays, Users, User, MessageSquare } from 'lucide-react';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuthContext';
 import { Badge } from '@/components/ui/badge';
 
 const BottomNav = () => {

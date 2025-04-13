@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { MapPin, List, Map as MapIcon, Calendar, Sparkles, Star } from 'lucide-react';
 import { useIsDesktop, useIsTablet, useIsMobile } from '@/hooks/useMediaQuery';
 import RecommendationEngine from '@/components/RecommendationEngine';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuthContext';
 
 const Index = () => {
   const navigate = useNavigate();
