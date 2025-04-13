@@ -40,7 +40,15 @@ const ChatConversation: React.FC<ChatConversationProps> = ({
     scrollToBottom();
   }, [messages]);
   
-  if (!currentUserId) return null;
+  // The early return was causing the hooks issue - we need to ensure all hooks are called
+  // regardless of conditions. Let's render an empty component instead of returning null
+  if (!currentUserId) {
+    return (
+      <ScrollArea className="flex-1 p-4 h-[400px]">
+        <div className="space-y-3"></div>
+      </ScrollArea>
+    );
+  }
   
   return (
     <ScrollArea className="flex-1 p-4 h-[400px]">

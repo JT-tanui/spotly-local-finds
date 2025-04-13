@@ -88,16 +88,26 @@ const NotificationsList: React.FC<NotificationsListProps> = ({ notifications }) 
   
   return (
     <div className="space-y-3">
-      {notifications.map(notification => (
-        <div key={notification.id} className="border rounded-lg p-4">
-          <div className="flex items-start">
-            {getNotificationContent(notification)}
+      {notifications.length > 0 ? (
+        notifications.map(notification => (
+          <div key={notification.id} className="border rounded-lg p-4">
+            <div className="flex items-start">
+              {getNotificationContent(notification)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+        ))
+      ) : (
+        <div className="border rounded-lg p-8 text-center">
+          <Bell className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
+          <h3 className="font-medium">No notifications</h3>
+          <p className="text-sm text-muted-foreground">
+            When you receive notifications, they'll appear here
           </p>
         </div>
-      ))}
+      )}
     </div>
   );
 };

@@ -74,7 +74,10 @@ const BottomNav = () => {
     };
   }, [user]);
   
-  if (!shouldShowNav) return null;
+  // Render empty div instead of null to maintain consistent hook execution
+  if (!shouldShowNav) {
+    return <div className="hidden"></div>;
+  }
   
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-background border-t z-50 shadow-lg">
