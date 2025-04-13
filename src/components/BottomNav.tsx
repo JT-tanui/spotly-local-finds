@@ -1,22 +1,44 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Home, CalendarDays, Users, User, MessageSquare } from 'lucide-react';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { supabase } from '@/integrations/supabase/client';
-import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuthContext';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 const BottomNav = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [visible, setVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
   
   // Don't show bottom nav on these routes or on tablet/desktop
   const hideNavRoutes = ['/location'];
   const shouldShowNav = !hideNavRoutes.includes(location.pathname) && isMobile;
+  
+  useEffect(() => {
+    // Handle scroll behavior
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      // Hide on scroll down, show on scroll up
+      if (currentScrollY > lastScrollY && currentScrollY > 20) {
+        setVisible(false);
+      } else {
+        setVisible(true);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+    
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
   
   useEffect(() => {
     if (!user) return;
@@ -80,7 +102,12 @@ const BottomNav = () => {
   }
   
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-background border-t z-50 shadow-lg">
+    <nav 
+      className={cn(
+        "fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t z-50 shadow-lg transition-all duration-300",
+        visible ? "translate-y-0" : "translate-y-full"
+      )}
+    >
       <div className="flex justify-around items-center h-16">
         <NavItem to="/" icon={<Home />} label="Explore" />
         <NavItem to="/bookings" icon={<CalendarDays />} label="Bookings" />
@@ -93,6 +120,9 @@ const BottomNav = () => {
         />
         <NavItem to="/profile" icon={<User />} label="Profile" />
       </div>
+      
+      {/* Safe area inset for notched phones */}
+      <div className="h-safe-bottom w-full bg-background/95 backdrop-blur-md"></div>
     </nav>
   );
 };
@@ -120,7 +150,10 @@ const NavItem: React.FC<NavItemProps> = ({ to, icon, label, badge }) => {
       }`}>
         {icon}
         {badge !== undefined && (
-          <Badge variant="destructive" className="absolute -top-2 -right-2 px-1 min-w-4 h-4 text-[10px] flex items-center justify-center">
+          <Badge 
+            variant="destructive" 
+            className="absolute -top-2 -right-2 px-1 min-w-4 h-4 text-[10px] flex items-center justify-center"
+          >
             {badge > 99 ? '99+' : badge}
           </Badge>
         )}

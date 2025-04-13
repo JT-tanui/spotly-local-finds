@@ -1,11 +1,10 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useIsDesktop, useIsTablet, useIsMobile } from '@/hooks/useMediaQuery';
-import { Bell, MessageSquare, Users, Search } from 'lucide-react';
+import { Bell, MessageSquare, Users, Search, Send, Phone, Video, ArrowLeft } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,6 +13,7 @@ import ChatList from '@/components/ChatList';
 import ChatConversation from '@/components/ChatConversation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import EmptyState from '@/components/EmptyState';
 
 type TabValue = 'notifications' | 'messages';
 
@@ -68,12 +68,96 @@ const Inbox = () => {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     if (profile) {
       fetchNotificationsAndMessages();
+      
+      // Setup realtime subscription for new messages and notifications
+      setupRealtimeSubscription();
     }
-  }, [profile]);
+    
+    return () => {
+      // Cleanup subscriptions
+      if (user) {
+        const channel = supabase.channel(`user-${user.id}`);
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [profile, user]);
+  
+  const setupRealtimeSubscription = () => {
+    if (!user) return;
+    
+    const channel = supabase.channel(`user-${user.id}`)
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `recipient_id=eq.${user.id}` },
+        (payload) => {
+          // Handle new message
+          const newMessage = payload.new as Message;
+          setMessages(prev => [...prev, newMessage]);
+          
+          // Update conversations
+          updateConversationsWithNewMessage(newMessage);
+          
+          // Show toast notification if the message is not from the current conversation
+          if (selectedConversation?.user.id !== newMessage.sender_id) {
+            fetchSenderDetails(newMessage.sender_id).then(sender => {
+              toast({
+                title: `New message from ${sender?.full_name || 'Someone'}`,
+                description: newMessage.content.slice(0, 50) + (newMessage.content.length > 50 ? '...' : ''),
+              });
+            });
+          }
+        }
+      )
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'activity_feed', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          // Handle new notification
+          const newNotification = payload.new as Notification;
+          setNotifications(prev => [newNotification, ...prev]);
+          
+          // Show toast notification
+          toast({
+            title: "New notification",
+            description: getNotificationDescription(newNotification),
+          });
+        }
+      )
+      .subscribe();
+  };
+  
+  const fetchSenderDetails = async (senderId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, username')
+        .eq('id', senderId)
+        .single();
+        
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error fetching sender details:", error);
+      return null;
+    }
+  };
+  
+  const getNotificationDescription = (notification: Notification) => {
+    switch (notification.activity_type) {
+      case 'reservation_confirmed':
+        return `Your reservation at ${notification.metadata?.place_name || 'a venue'} is confirmed.`;
+      case 'friend_request':
+        return `${notification.metadata?.user_name || 'Someone'} sent you a friend request.`;
+      case 'event_invitation':
+        return `You're invited to '${notification.metadata?.event_name || 'an event'}'.`;
+      default:
+        return "You have a new notification";
+    }
+  };
 
   const fetchNotificationsAndMessages = async () => {
     setLoading(true);
@@ -167,6 +251,49 @@ const Inbox = () => {
     
     setConversations(Array.from(conversationMap.values()));
   };
+
+  const updateConversationsWithNewMessage = (newMessage: Message) => {
+    const isIncoming = newMessage.recipient_id === user?.id;
+    const partnerId = isIncoming ? newMessage.sender_id : newMessage.recipient_id;
+    
+    setConversations(prev => {
+      const updated = [...prev];
+      const existingIndex = updated.findIndex(c => c.user.id === partnerId);
+      
+      if (existingIndex >= 0) {
+        // Update existing conversation
+        const conversation = {...updated[existingIndex]};
+        conversation.lastMessage = newMessage;
+        if (isIncoming) {
+          conversation.unreadCount += 1;
+        }
+        
+        // Move to top
+        updated.splice(existingIndex, 1);
+        updated.unshift(conversation);
+      } else {
+        // Create new conversation
+        fetchSenderDetails(partnerId).then(partner => {
+          if (!partner) return;
+          
+          const newConversation: Conversation = {
+            user: {
+              id: partnerId,
+              full_name: partner.full_name,
+              avatar_url: partner.avatar_url,
+              username: partner.username
+            },
+            lastMessage: newMessage,
+            unreadCount: isIncoming ? 1 : 0
+          };
+          
+          setConversations(prev => [newConversation, ...prev]);
+        });
+      }
+      
+      return updated;
+    });
+  };
   
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || !user) return;
@@ -179,6 +306,19 @@ const Inbox = () => {
         read: false
       };
       
+      setNewMessage('');
+      
+      // Optimistically add to UI
+      const optimisticId = `temp-${Date.now()}`;
+      const optimisticMessage = {
+        ...message,
+        id: optimisticId,
+        created_at: new Date().toISOString()
+      };
+      
+      setMessages(prev => [...prev, optimisticMessage]);
+      
+      // Send to server
       const { data, error } = await supabase
         .from('messages')
         .insert(message)
@@ -186,12 +326,20 @@ const Inbox = () => {
       
       if (error) throw error;
       
-      // Optimistically update UI
-      setMessages(prev => [...prev, {...message, id: data?.[0]?.id || 'temp-id', created_at: new Date().toISOString()}]);
-      setNewMessage('');
+      // Replace optimistic message with real one
+      if (data?.[0]) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === optimisticId ? data[0] : msg
+        ));
+      }
       
-      // Refresh conversations
-      fetchNotificationsAndMessages();
+      // Update conversations list
+      updateConversationsWithNewMessage({
+        ...message,
+        id: data?.[0]?.id || optimisticId,
+        created_at: data?.[0]?.created_at || new Date().toISOString()
+      });
+      
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
@@ -199,8 +347,28 @@ const Inbox = () => {
         description: "Please try again",
         variant: "destructive"
       });
+      
+      // Remove the optimistic message
+      setMessages(prev => prev.filter(msg => !msg.id.startsWith('temp-')));
     }
   };
+  
+  const handleMessageTyping = useCallback(() => {
+    // Show typing indicator on the receiver's end (would be implemented with realtime)
+    setIsTyping(true);
+    
+    // Clear previous timeout
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+    
+    // Set new timeout to hide typing indicator after 2 seconds of inactivity
+    const timeout = setTimeout(() => {
+      setIsTyping(false);
+    }, 2000);
+    
+    setTypingTimeout(timeout);
+  }, [typingTimeout]);
   
   const handleSelectConversation = async (conversation: Conversation) => {
     setSelectedConversation(conversation);
@@ -225,6 +393,15 @@ const Inbox = () => {
           .update({ read: true })
           .eq('recipient_id', user?.id)
           .eq('sender_id', conversation.user.id);
+          
+        // Update unread count for this conversation
+        setConversations(prev =>
+          prev.map(conv =>
+            conv.user.id === conversation.user.id
+              ? { ...conv, unreadCount: 0 }
+              : conv
+          )
+        );
       }
     } catch (error) {
       console.error('Error fetching conversation:', error);
@@ -232,7 +409,20 @@ const Inbox = () => {
     }
   };
   
-  // Mock data generators for demo purposes
+  const handleVoiceCall = (userId: string) => {
+    toast({
+      title: "Voice Call",
+      description: "This feature is coming soon!",
+    });
+  };
+  
+  const handleVideoCall = (userId: string) => {
+    toast({
+      title: "Video Call",
+      description: "This feature is coming soon!",
+    });
+  };
+  
   const getMockNotifications = (): Notification[] => [
     {
       id: '1',
@@ -421,7 +611,7 @@ const Inbox = () => {
           </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="messages">
+        <TabsContent value="messages" className="animate-fade-in">
           <div className="w-full mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -451,55 +641,20 @@ const Inbox = () => {
                     ))}
                   </div>
                 ) : filteredConversations.length > 0 ? (
-                  <div>
-                    {filteredConversations.map(conversation => (
-                      <div 
-                        key={conversation.user.id} 
-                        onClick={() => handleSelectConversation(conversation)}
-                        className={`p-3 hover:bg-slate-50 cursor-pointer border-b last:border-b-0 ${
-                          selectedConversation?.user.id === conversation.user.id ? 'bg-slate-100' : ''
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <Avatar>
-                              <AvatarImage src={conversation.user.avatar_url} />
-                              <AvatarFallback>{conversation.user.full_name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            {conversation.unreadCount > 0 && (
-                              <span className="absolute -top-1 -right-1 bg-spotly-red text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">
-                                {conversation.unreadCount}
-                              </span>
-                            )}
-                          </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-center">
-                              <p className="font-medium truncate">{conversation.user.full_name}</p>
-                              {conversation.lastMessage && (
-                                <p className="text-xs text-muted-foreground">
-                                  {new Date(conversation.lastMessage.created_at).toLocaleDateString()}
-                                </p>
-                              )}
-                            </div>
-                            
-                            {conversation.lastMessage && (
-                              <p className={`text-sm truncate ${conversation.unreadCount > 0 ? 'font-medium' : 'text-muted-foreground'}`}>
-                                {conversation.lastMessage.sender_id === user?.id ? 'You: ' : ''}
-                                {conversation.lastMessage.content}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <ChatList
+                    conversations={filteredConversations}
+                    currentUserId={user?.id}
+                    onSelectConversation={handleSelectConversation}
+                    selectedConversationId={selectedConversation?.user.id}
+                    onVideoCall={handleVideoCall}
+                    onVoiceCall={handleVoiceCall}
+                  />
                 ) : (
-                  <div className="p-8 text-center">
-                    <Users className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-                    <h3 className="font-medium">No conversations yet</h3>
-                    <p className="text-sm text-muted-foreground">Start chatting with your connections</p>
-                  </div>
+                  <EmptyState
+                    icon={Users}
+                    title="No conversations yet"
+                    description="Connect with friends to start chatting"
+                  />
                 )}
               </ScrollArea>
             </div>
@@ -513,9 +668,7 @@ const Inbox = () => {
                     <div className="flex items-center gap-2">
                       {!isDesktop && (
                         <Button variant="ghost" size="icon" className="mr-1" onClick={() => setSelectedConversation(null)}>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevron-left">
-                            <path d="m15 18-6-6 6-6"/>
-                          </svg>
+                          <ArrowLeft className="h-4 w-4" />
                         </Button>
                       )}
                       <Avatar>
@@ -529,32 +682,25 @@ const Inbox = () => {
                         </p>
                       </div>
                     </div>
+                    
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => handleVoiceCall(selectedConversation.user.id)}>
+                        <Phone className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleVideoCall(selectedConversation.user.id)}>
+                        <Video className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   
                   {/* Messages */}
-                  <ScrollArea className="flex-1 p-4">
-                    <div className="space-y-3">
-                      {messages.map(message => (
-                        <div 
-                          key={message.id}
-                          className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
-                        >
-                          <div 
-                            className={`max-w-[75%] px-4 py-2 rounded-lg ${
-                              message.sender_id === user?.id 
-                                ? 'bg-spotly-red text-white rounded-tr-none' 
-                                : 'bg-slate-100 rounded-tl-none'
-                            }`}
-                          >
-                            <p>{message.content}</p>
-                            <p className="text-xs mt-1 opacity-70">
-                              {new Date(message.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                  <ChatConversation
+                    messages={messages}
+                    currentUserId={user?.id}
+                    partnerProfile={selectedConversation.user}
+                    isLoading={loading}
+                    typingStatus={isTyping}
+                  />
                   
                   {/* Message Input */}
                   <div className="border-t p-3">
@@ -562,27 +708,36 @@ const Inbox = () => {
                       <Input 
                         placeholder="Type a message..." 
                         value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                        onChange={(e) => {
+                          setNewMessage(e.target.value);
+                          handleMessageTyping();
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                        className="flex-1"
                       />
-                      <Button onClick={handleSendMessage}>Send</Button>
+                      <Button 
+                        onClick={handleSendMessage}
+                        disabled={!newMessage.trim()}
+                        className="bg-spotly-red hover:bg-spotly-red/90"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="h-[500px] flex flex-col items-center justify-center p-4">
-                  <MessageSquare className="h-12 w-12 text-muted-foreground mb-2" />
-                  <h3 className="font-medium">No conversation selected</h3>
-                  <p className="text-sm text-muted-foreground text-center">
-                    Select a conversation from the list or start a new one
-                  </p>
-                </div>
+                <EmptyState
+                  icon={MessageSquare}
+                  title="No conversation selected"
+                  description="Select a conversation from the list or start a new one"
+                  className="h-[500px]"
+                />
               )}
             </div>
           </div>
         </TabsContent>
         
-        <TabsContent value="notifications">
+        <TabsContent value="notifications" className="animate-fade-in">
           {loading ? (
             <div className="space-y-3">
               {Array(5).fill(0).map((_, i) => (
@@ -600,13 +755,12 @@ const Inbox = () => {
           ) : notifications.length > 0 ? (
             <NotificationsList notifications={notifications} />
           ) : (
-            <div className="text-center py-12 border rounded-lg">
-              <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-              <h3 className="font-medium">No notifications</h3>
-              <p className="text-sm text-muted-foreground">
-                When you receive notifications, they'll appear here
-              </p>
-            </div>
+            <EmptyState
+              icon={Bell}
+              title="No notifications"
+              description="When you receive notifications, they'll appear here"
+              className="py-12 border rounded-lg"
+            />
           )}
         </TabsContent>
       </Tabs>

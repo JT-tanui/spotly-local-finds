@@ -2,7 +2,14 @@
 import React from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, Phone, Video, MoreVertical } from 'lucide-react';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 
 interface Message {
   id: string;
@@ -29,13 +36,17 @@ interface ChatListProps {
   currentUserId?: string;
   onSelectConversation: (conversation: Conversation) => void;
   selectedConversationId?: string;
+  onVideoCall?: (userId: string) => void;
+  onVoiceCall?: (userId: string) => void;
 }
 
 const ChatList: React.FC<ChatListProps> = ({
   conversations,
   currentUserId,
   onSelectConversation,
-  selectedConversationId
+  selectedConversationId,
+  onVideoCall,
+  onVoiceCall
 }) => {
   return (
     <div className="divide-y">
@@ -44,7 +55,7 @@ const ChatList: React.FC<ChatListProps> = ({
           <div 
             key={conversation.user.id}
             onClick={() => onSelectConversation(conversation)}
-            className={`p-3 hover:bg-slate-50 cursor-pointer ${
+            className={`p-3 hover:bg-slate-50 cursor-pointer transition-colors ${
               selectedConversationId === conversation.user.id ? 'bg-slate-100' : ''
             }`}
           >
@@ -78,6 +89,54 @@ const ChatList: React.FC<ChatListProps> = ({
                     {conversation.lastMessage.content}
                   </p>
                 )}
+              </div>
+              
+              <div className="flex items-center gap-1">
+                {onVoiceCall && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 rounded-full hidden sm:flex"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onVoiceCall(conversation.user.id);
+                    }}
+                  >
+                    <Phone className="h-4 w-4" />
+                  </Button>
+                )}
+                
+                {onVideoCall && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 rounded-full hidden sm:flex"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onVideoCall(conversation.user.id);
+                    }}
+                  >
+                    <Video className="h-4 w-4" />
+                  </Button>
+                )}
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-full hidden sm:flex"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem>Mark as read</DropdownMenuItem>
+                    <DropdownMenuItem>Mute conversation</DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive">Delete conversation</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </div>
