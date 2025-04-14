@@ -21,6 +21,7 @@ import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import { notificationService } from "./services/notificationService";
 import { PushNotificationHelper } from "./services/pushNotificationHelper";
+import { CapacitorService } from "./services/capacitorService";
 
 import "./index.css";
 
@@ -28,15 +29,22 @@ const queryClient = new QueryClient();
 
 const AppRoutes = () => {
   const isTabletOrDesktop = useIsTablet() || useIsDesktop();
+  const isNative = CapacitorService.isNative();
   
   useEffect(() => {
     // Initialize notifications when the app starts
-    const initNotifications = async () => {
+    const initApp = async () => {
+      // Print platform information to help with debugging
+      if (isNative) {
+        const deviceInfo = await CapacitorService.getDeviceInfo();
+        console.log('Running on:', deviceInfo.platform, deviceInfo.operatingSystem, deviceInfo.osVersion);
+      }
+      
       await notificationService.init();
       PushNotificationHelper.loadScheduledReminders();
     };
     
-    initNotifications();
+    initApp();
     
     // Add visibility change listener to detect when app comes to foreground
     const handleVisibilityChange = () => {
@@ -51,12 +59,15 @@ const AppRoutes = () => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [isNative]);
   
   return (
     <>
       {isTabletOrDesktop && <TopNav />}
-      <div className={`max-w-6xl mx-auto min-h-screen relative bg-background ${isTabletOrDesktop ? 'pt-16' : ''}`}>
+      <div 
+        className={`max-w-6xl mx-auto min-h-[100dvh] relative bg-background 
+          ${isTabletOrDesktop ? 'pt-16' : isNative ? 'pt-0 pb-20' : 'pt-0 pb-20'}`}
+      >
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/place/:id" element={<PlaceDetails />} />

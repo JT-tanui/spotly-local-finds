@@ -13,8 +13,8 @@ export function usePlaces(location: LocationData | null, filterOptions: FilterOp
     if (location) {
       const placesWithDistance = mockPlaces.map(place => {
         const distance = calculateDistance(
-          location.lat,
-          location.lng,
+          location.latitude,
+          location.longitude,
           place.location.lat,
           place.location.lng
         );
@@ -48,7 +48,7 @@ export function usePlaces(location: LocationData | null, filterOptions: FilterOp
       }
       
       // Filter by price
-      if (filterOptions.price && place.price && place.price > filterOptions.price) {
+      if (filterOptions.price && filterOptions.price.length > 0 && place.price && !filterOptions.price.includes(place.price)) {
         return false;
       }
       

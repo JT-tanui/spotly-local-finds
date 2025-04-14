@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { notificationService, NotificationOptions } from '../services/notificationService';
+import { notificationService } from '../services/notificationService';
+import { NotificationOptions } from '../types';
 import { useToast } from './use-toast';
 
 export function useNotifications() {

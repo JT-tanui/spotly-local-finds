@@ -14,7 +14,10 @@ export interface Place {
   description?: string;
   distance?: number;
   price?: number;
-  openHours?: string;
+  openHours?: {
+    open: boolean;
+    hours: string;
+  };
   isFeatured?: boolean;
   popularTimes?: any;
   website?: string;
@@ -51,11 +54,7 @@ export interface Event {
     full_name: string;
     avatar_url?: string;
   };
-  participants?: {
-    id: string;
-    user_id: string;
-    status: string;
-  }[];
+  participants?: EventParticipant[];
   participants_count?: number;
 }
 
@@ -88,7 +87,7 @@ export interface Reservation {
   date: string;
   time: string;
   partySize: number;
-  status: 'confirmed' | 'pending' | 'cancelled';
+  status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
   placeName: string;
   placeImage: string;
 }
@@ -119,7 +118,7 @@ export interface EventParticipant {
   id: string;
   user_id: string;
   event_id: string;
-  status: 'going' | 'maybe' | 'not_going';
+  status: 'going' | 'maybe' | 'not_going' | 'invited' | 'accepted' | 'declined';
   user: {
     full_name: string;
     avatar_url?: string;

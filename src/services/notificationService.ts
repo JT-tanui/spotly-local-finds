@@ -1,7 +1,15 @@
+
 import { NotificationOptions } from '@/types';
+import { CapacitorService } from './capacitorService';
 
 export const notificationService = {
   init: async (): Promise<boolean> => {
+    // Check if running on native platform
+    if (CapacitorService.isNative()) {
+      return await CapacitorService.initializePushNotifications();
+    }
+    
+    // Web browser implementation
     if (!('Notification' in window)) {
       console.log('This browser does not support notifications');
       return false;
@@ -20,6 +28,12 @@ export const notificationService = {
   },
   
   requestPermission: async (): Promise<boolean> => {
+    // Native implementation uses a different flow through initialization
+    if (CapacitorService.isNative()) {
+      return await CapacitorService.initializePushNotifications();
+    }
+    
+    // Web browser implementation
     if (Notification.permission === 'granted') {
       return true;
     }
@@ -38,18 +52,30 @@ export const notificationService = {
   },
   
   sendNotification: async (options: NotificationOptions): Promise<boolean> => {
+    // Native implementation
+    if (CapacitorService.isNative()) {
+      return await CapacitorService.sendLocalNotification(options);
+    }
+    
+    // Web browser implementation
     try {
       if (Notification.permission === 'granted') {
-        await navigator.serviceWorker.ready;
-        
-        // Ensure title and body are defined
-        if (!options.title || !options.body) {
-          console.error('Notification title and body are required.');
-          return false;
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.ready;
+          
+          // Ensure title and body are defined
+          if (!options.title || !options.body) {
+            console.error('Notification title and body are required.');
+            return false;
+          }
+          
+          registration.showNotification(options.title, options);
+          return true;
+        } else {
+          // Fallback to simple notifications if service worker is not available
+          new Notification(options.title, { body: options.body, icon: options.icon });
+          return true;
         }
-        
-        self.registration.showNotification(options.title, options);
-        return true;
       } else {
         console.warn('Notification permission not granted');
         return false;

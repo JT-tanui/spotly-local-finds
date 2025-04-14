@@ -1,134 +1,95 @@
 
-import React, { useEffect, useState } from 'react';
-import { Card, CardHeader } from "@/components/ui/card";
+import React, { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProfileHeader from "@/components/ProfileHeader";
-import ProfileStats from "@/components/ProfileStats";
 import ProfileOverview from "@/components/ProfileOverview";
-import { UserProfile, Place } from "@/types";
-import { useNotifications } from '@/hooks/useNotifications';
-import { Button } from '@/components/ui/button';
-import { Bell } from 'lucide-react';
+import ProfileStats from "@/components/ProfileStats";
+import NotificationPreferences from "@/components/NotificationPreferences";
+import SettingsTab from "@/components/SettingsTab";
+import HelpTab from "@/components/HelpTab";
+import { useAuthContext } from "@/hooks/useAuthContext";
+import { useNotifications } from "@/hooks/useNotifications";
 
 const Profile = () => {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [favorites, setFavorites] = useState<Place[]>([]);
-  const [pastBookings, setPastBookings] = useState<Place[]>([]);
-  const { permissionStatus, requestPermission } = useNotifications();
+  const { user, loading: authLoading } = useAuthContext();
+  const [activeTab, setActiveTab] = useState("overview");
+  const { isSupported: notificationsSupported } = useNotifications();
 
-  useEffect(() => {
-    // Simulate API call to fetch user profile
-    const fetchProfile = async () => {
-      // This would be an API call in a real app
-      setTimeout(() => {
-        setUser({
-          id: "user-123",
-          full_name: "Alex Johnson",
-          username: "alexj",
-          avatar_url: "https://i.pravatar.cc/150?img=32",
-          email: "alex@example.com",
-          bookings_count: 12,
-          saved_count: 8,
-          free_reservations: 1,
-          loyalty_points: 350
-        });
-
-        // Sample favorites
-        setFavorites([
-          {
-            id: "place-1",
-            name: "Skyline Restaurant",
-            imageUrl: "https://i.pravatar.cc/300?img=5",
-            address: "123 Main St, City",
-            category: "restaurant",
-            rating: 4.8,
-            reviewCount: 120,
-            location: {
-              lat: 37.7749,
-              lng: -122.4194
-            }
-          },
-          {
-            id: "place-2",
-            name: "Grand Hotel",
-            imageUrl: "https://i.pravatar.cc/300?img=6",
-            address: "456 Park Ave, City",
-            category: "hotel",
-            rating: 4.6,
-            reviewCount: 86,
-            location: {
-              lat: 37.7851,
-              lng: -122.4094
-            }
-          }
-        ]);
-
-        // Sample past bookings
-        setPastBookings([
-          {
-            id: "place-3",
-            name: "City Tours",
-            imageUrl: "https://i.pravatar.cc/300?img=7",
-            address: "789 Tour St, City",
-            category: "activity",
-            rating: 4.5,
-            reviewCount: 32,
-            location: {
-              lat: 37.7651,
-              lng: -122.4194
-            }
-          }
-        ]);
-
-        setIsLoading(false);
-      }, 1000);
-    };
-
-    fetchProfile();
-  }, []);
-
-  const handleEnableNotifications = async () => {
-    await requestPermission();
+  const mockUserProfile = {
+    id: user?.id || "123",
+    full_name: user?.user_metadata?.full_name || "Sarah Johnson",
+    username: user?.user_metadata?.username || "sarahjohnson",
+    avatar_url: user?.user_metadata?.avatar_url || "https://i.pravatar.cc/150?img=23",
+    email: user?.email || "sarah@example.com",
+    phone: "+1 555-123-4567",
+    website: "www.sarahjohnson.com",
+    bookings_count: 12,
+    saved_count: 24,
+    free_reservations: 2,
+    loyalty_points: 450
   };
 
+  if (authLoading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 pb-16">
-      <Card className="mb-4">
-        <CardHeader>
-          {user && <ProfileHeader user={user} isLoading={isLoading} />}
-        </CardHeader>
-        
-        {!isLoading && user && (
-          <>
-            <ProfileStats 
-              bookingsCount={user.bookings_count || 0} 
-              savedCount={user.saved_count || 0}
-              freeReservations={user.free_reservations || 0}
-              loyaltyPoints={user.loyalty_points || 0}
-            />
-            
-            {permissionStatus !== 'granted' && (
-              <div className="px-4 pb-4">
-                <Button 
-                  onClick={handleEnableNotifications}
-                  className="w-full flex items-center justify-center"
-                  variant="outline"
-                >
-                  <Bell className="mr-2 h-4 w-4" />
-                  Enable Notifications
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </Card>
+    <div className="container px-4 py-6 pt-16 md:pt-6 pb-20 md:pb-6 max-w-4xl mx-auto">
+      <ProfileHeader
+        user={mockUserProfile}
+        isLoading={false}
+      />
       
-      {!isLoading && (
-        <ProfileOverview
-          favorites={favorites}
-          pastBookings={pastBookings}
-        />
-      )}
+      <Tabs
+        defaultValue="overview"
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="mt-6"
+      >
+        <TabsList className="w-full grid grid-cols-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="help">Help</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="overview" className="space-y-6 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="col-span-1 md:col-span-2">
+              <ProfileOverview user={mockUserProfile} />
+            </div>
+            
+            <div className="col-span-1">
+              <ProfileStats user={mockUserProfile} />
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="notifications" className="mt-6">
+          {notificationsSupported ? (
+            <NotificationPreferences />
+          ) : (
+            <div className="text-center p-8 border rounded-lg">
+              <h3 className="text-lg font-medium">Notifications Not Supported</h3>
+              <p className="text-muted-foreground mt-2">
+                Push notifications are not supported in your browser. Try using a modern browser like Chrome or Safari.
+              </p>
+            </div>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="settings" className="mt-6">
+          <SettingsTab user={mockUserProfile} />
+        </TabsContent>
+        
+        <TabsContent value="help" className="mt-6">
+          <HelpTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
