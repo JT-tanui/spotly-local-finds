@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Calendar, Filter, Plus, Bell } from "lucide-react";
@@ -61,12 +60,19 @@ const GroupEvents = () => {
         .select(`
           *,
           creator:profiles!creator_id(full_name, avatar_url),
-          participants_count:event_participants(count)
+          participants:event_participants(*)
         `)
         .gte('event_date', new Date().toISOString())
         .order('event_date', { ascending: true });
 
       if (upcomingError) throw upcomingError;
+
+      // Transform the data to match Event type
+      const transformedUpcomingEvents = upcomingData?.map(event => ({
+        ...event,
+        creator: event.creator || { full_name: 'Unknown', avatar_url: null },
+        participants_count: event.participants?.length || 0
+      })) as Event[];
 
       // Fetch past events
       const { data: pastData, error: pastError } = await supabase
@@ -106,13 +112,13 @@ const GroupEvents = () => {
       }
       
       // Process the data
-      setEvents(upcomingData || []);
+      setEvents(transformedUpcomingEvents || []);
       setPastEvents(pastData || []);
       setMyEvents(myEventsList);
       
       // Schedule notifications for upcoming events
       if (permissionStatus === 'granted') {
-        (upcomingData || []).forEach(event => {
+        transformedUpcomingEvents.forEach(event => {
           PushNotificationHelper.scheduleEventReminder(event);
         });
       }
@@ -124,7 +130,6 @@ const GroupEvents = () => {
         variant: "destructive"
       });
       
-      // Use empty arrays as fallbacks
       setEvents([]);
       setPastEvents([]);
       setMyEvents([]);

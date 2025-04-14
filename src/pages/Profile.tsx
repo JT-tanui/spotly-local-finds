@@ -1,128 +1,119 @@
+// Notification Service Worker
+// This service worker handles push notifications and notification clicks
 
-import React, { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import ProfileHeader from "@/components/ProfileHeader";
-import ProfileOverview from "@/components/ProfileOverview";
-import ProfileStats from "@/components/ProfileStats";
-import QuickActions from "@/components/QuickActions";
-import SocialConnections from "@/components/SocialConnections";
-import SettingsTab from "@/components/SettingsTab";
-import HelpTab from "@/components/HelpTab";
-import NotificationPreferences from "@/components/NotificationPreferences";
-import { AlertCircle } from "lucide-react";
-import { useAuth } from "@/hooks/useAuthContext";
-import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { useNotifications } from '@/hooks/useNotifications';
+self.addEventListener('install', (event) => {
+  console.log('Notification Service Worker installed');
+  self.skipWaiting();
+});
 
-const Profile = () => {
-  const { user, profile, isLoading } = useAuth();
-  const isMobile = useIsMobile();
-  const isTablet = useIsTablet();
-  const { toast } = useToast();
-  const { sendMessageNotification, sendEventReminderNotification } = useNotifications();
-  const [activeTab, setActiveTab] = useState("overview");
+self.addEventListener('activate', (event) => {
+  console.log('Notification Service Worker activated');
+  return self.clients.claim();
+});
+
+// Handle notification clicks
+self.addEventListener('notificationclick', (event) => {
+  console.log('Notification clicked', event.notification.tag);
   
-  // For testing notifications
-  const testMessageNotification = () => {
-    sendMessageNotification(
-      "Test User",
-      "This is a test message notification. It demonstrates how push notifications work.",
-      "https://i.pravatar.cc/150?img=3"
-    );
+  // Close the notification
+  event.notification.close();
+  
+  // Handle different notification actions
+  if (event.action === 'reply') {
+    // The user clicked on the reply action
+    const messageData = event.notification.data;
     
-    toast({
-      title: "Test Notification Sent",
-      description: "Check your device notifications"
+    // Get all windows clients
+    self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    }).then((clients) => {
+      // If we have an open window, focus it and post a message to it
+      if (clients.length > 0) {
+        clients[0].focus();
+        clients[0].postMessage({
+          type: 'reply-action',
+          data: messageData
+        });
+      } else {
+        // Open a new window to the inbox page
+        self.clients.openWindow('/inbox').then((windowClient) => {
+          // Wait for the window to load and then post a message
+          setTimeout(() => {
+            if (windowClient) {
+              windowClient.postMessage({
+                type: 'reply-action',
+                data: messageData
+              });
+            }
+          }, 1000);
+        });
+      }
     });
-  };
-  
-  const testEventNotification = () => {
-    sendEventReminderNotification(
-      "Weekend Hiking Trip",
-      "Tomorrow at 9:00 AM",
-      "event-123"
-    );
+  } else if (event.action === 'view') {
+    // The user clicked on the view action or the notification itself
+    const notificationData = event.notification.data || {};
+    let url = '/';
     
-    toast({
-      title: "Test Event Reminder Sent",
-      description: "Check your device notifications"
-    });
-  };
-  
-  if (!user) {
-    return (
-      <div className="p-4 min-h-[80vh] flex flex-col justify-center items-center text-center">
-        <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Sign In Required</h2>
-        <p className="text-muted-foreground mb-4">
-          You need to be signed in to view your profile.
-        </p>
-        <Button asChild>
-          <a href="/auth">Sign In</a>
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`pt-4 px-4 pb-20 ${isMobile ? '' : 'pt-[60px]'}`}>
-      <ProfileHeader user={profile} isLoading={isLoading} />
+    // Determine which page to open based on notification type
+    if (notificationData.type === 'message') {
+      url = '/inbox';
+    } else if (notificationData.type === 'event') {
+      url = `/events?id=${notificationData.eventId}`;
+    }
+    
+    // Get all clients
+    self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    }).then((clients) => {
+      // If we have an open window, focus it and navigate
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.focus();
+          client.navigate(url);
+          return;
+        }
+      }
       
-      <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-3">
-        <div className="col-span-1 lg:col-span-2">
-          <Tabs 
-            value={activeTab} 
-            onValueChange={setActiveTab}
-            className="w-full"
-          >
-            <TabsList className={`${isMobile ? 'grid grid-cols-3' : isTablet ? 'grid grid-cols-4' : ''}`}>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="connections">Connections</TabsTrigger>
-              <TabsTrigger value="notifications">Notifications</TabsTrigger>
-              <TabsTrigger value="settings">Settings</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="overview" className="space-y-6">
-              <ProfileOverview />
-              <ProfileStats />
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold mb-2">Test Notifications</h3>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={testMessageNotification}>
-                    Test Message Notification
-                  </Button>
-                  <Button variant="outline" onClick={testEventNotification}>
-                    Test Event Reminder
-                  </Button>
-                </div>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="connections">
-              <SocialConnections />
-            </TabsContent>
-            
-            <TabsContent value="notifications">
-              <NotificationPreferences />
-            </TabsContent>
-            
-            <TabsContent value="settings">
-              <SettingsTab />
-              <div className="mt-6">
-                <HelpTab />
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-        
-        <div className="lg:col-span-1 space-y-6">
-          <QuickActions />
-        </div>
-      </div>
-    </div>
-  );
-};
+      // If no window is open, open a new one
+      self.clients.openWindow(url);
+    });
+  } else {
+    // The user clicked the main notification body
+    // Open the inbox or the relevant page
+    const notificationData = event.notification.data || {};
+    let url = '/';
+    
+    if (notificationData.type === 'message') {
+      url = '/inbox';
+    } else if (notificationData.type === 'event') {
+      url = `/events`;
+    }
+    
+    self.clients.openWindow(url);
+  }
+});
 
-export default Profile;
+// Handle push notifications
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  
+  try {
+    const data = event.data.json();
+    
+    event.waitUntil(
+      self.registration.showNotification(data.title, {
+        body: data.body,
+        icon: data.icon || '/favicon.ico',
+        badge: data.badge,
+        tag: data.tag,
+        data: data.data,
+        actions: data.actions,
+        requireInteraction: data.requireInteraction
+      })
+    );
+  } catch (error) {
+    console.error('Error showing push notification:', error);
+  }
+});

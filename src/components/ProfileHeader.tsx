@@ -1,76 +1,54 @@
 import React from 'react';
-import { User, Mail, Phone, Settings, LogOut } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { CardTitle, CardDescription, CardHeader, CardContent, CardFooter, Card } from '@/components/ui/card';
-import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/hooks/use-toast';
-import { UserProfile } from '@/types';
-import { useAuth } from '@/hooks/useAuthContext';
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 
-interface ProfileHeaderProps {
-  user: UserProfile;
-  onEditProfile: () => void;
+interface UserProfile {
+  id: string;
+  full_name: string;
+  username?: string;
+  email: string;
+  avatar_url?: string;
+  website?: string;
+  interests?: string[];
+  past_bookings?: number;
+  favorites?: number;
+  bookings_count?: number;
+  saved_count?: number;
+  free_reservations?: number;
+  loyalty_points?: number;
 }
 
-const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user, onEditProfile }) => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { signOut } = useAuth();
+export interface ProfileHeaderProps {
+  user: UserProfile;
+  isLoading?: boolean;
+}
 
-  const handleSignOut = async () => {
-    await signOut();
-    toast({
-      title: "Signed out successfully",
-      description: "You have been signed out of your account.",
-    });
-    setTimeout(() => navigate('/'), 1000);
-  };
-
+const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user, isLoading = false }) => {
   return (
-    <Card className="mb-6 animate-fade-in">
-      <CardHeader className="flex flex-row items-center gap-4 pb-2">
-        <Avatar className="h-20 w-20 border-2 border-spotly-red">
-          <AvatarImage src={user.avatar_url || ''} alt={user.full_name || 'User'} />
-          <AvatarFallback><User /></AvatarFallback>
+    <div className="flex items-center gap-4">
+      {isLoading ? (
+        <Skeleton className="h-16 w-16 rounded-full" />
+      ) : (
+        <Avatar>
+          <AvatarImage src={user?.avatar_url} alt={user?.full_name} />
+          <AvatarFallback>{user?.full_name?.charAt(0)}</AvatarFallback>
         </Avatar>
-        <div className="flex flex-col">
-          <CardTitle>{user.full_name || 'User'}</CardTitle>
-          <CardDescription className="flex items-center">
-            <Mail className="h-3 w-3 mr-1" />
-            {user.email || 'No email provided'}
-          </CardDescription>
-          <CardDescription className="flex items-center mt-1">
-            <Phone className="h-3 w-3 mr-1" />
-            {user.phone || 'No phone provided'}
-          </CardDescription>
-          <CardDescription className="text-xs mt-2">
-            Member since {new Date(user.created_at).toLocaleString('default', { month: 'long', year: 'numeric' })}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {/* Stats content would go here */}
-      </CardContent>
-      <CardFooter className="flex justify-between">
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={onEditProfile}
-        >
-          Edit Profile
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="sm"
-          className="text-destructive"
-          onClick={handleSignOut}
-        >
-          <LogOut className="h-4 w-4 mr-1" />
-          Sign Out
-        </Button>
-      </CardFooter>
-    </Card>
+      )}
+      
+      <div className="space-y-1">
+        {isLoading ? (
+          <>
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-32" />
+          </>
+        ) : (
+          <>
+            <h2 className="text-2xl font-semibold">{user?.full_name}</h2>
+            <p className="text-sm text-muted-foreground">@{user?.username || 'username'}</p>
+          </>
+        )}
+      </div>
+    </div>
   );
 };
 
