@@ -1,183 +1,102 @@
-/**
- * Push Notification Service
- * 
- * This service manages push notifications for the application.
- * It handles requesting permissions, registering service workers,
- * and sending notifications to the device.
- */
+import { NotificationOptions } from '@/types';
 
-export interface NotificationOptions {
-  title: string;
-  body: string;
-  icon?: string;
-  badge?: string;
-  tag?: string;
-  data?: any;
-  actions?: NotificationAction[];
-  requireInteraction?: boolean;
-}
-
-interface NotificationAction {
-  action: string;
-  title: string;
-  icon?: string;
-}
-
-export class NotificationService {
-  private static instance: NotificationService;
-  private serviceWorkerRegistration: ServiceWorkerRegistration | null = null;
-  private permission: NotificationPermission = 'default';
-
-  private constructor() {
-    // Private constructor to enforce singleton
-  }
-
-  public static getInstance(): NotificationService {
-    if (!NotificationService.instance) {
-      NotificationService.instance = new NotificationService();
-    }
-    return NotificationService.instance;
-  }
-
-  /**
-   * Initialize the notification service
-   * Registers the service worker and checks permission
-   */
-  public async init(): Promise<boolean> {
-    // Check if browser supports notifications
+export const notificationService = {
+  init: async (): Promise<boolean> => {
     if (!('Notification' in window)) {
       console.log('This browser does not support notifications');
       return false;
     }
-
-    // Check if service workers are supported
-    if (!('serviceWorker' in navigator)) {
-      console.log('Service workers are not supported by this browser');
-      return false;
+    
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.register('/service-worker.js');
+        console.log('Service Worker registered with scope:', registration.scope);
+      } catch (error) {
+        console.error('Service Worker registration failed:', error);
+      }
     }
-
-    try {
-      // Register service worker
-      this.serviceWorkerRegistration = await navigator.serviceWorker.register('/notification-sw.js');
-      
-      // Update permission status
-      this.permission = Notification.permission;
-      
-      return true;
-    } catch (error) {
-      console.error('Service worker registration failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Request permission to show notifications
-   */
-  public async requestPermission(): Promise<boolean> {
-    if (!('Notification' in window)) {
-      return false;
-    }
-
-    if (this.permission === 'granted') {
+    
+    return true;
+  },
+  
+  requestPermission: async (): Promise<boolean> => {
+    if (Notification.permission === 'granted') {
       return true;
     }
-
+    
+    if (Notification.permission === 'denied') {
+      return false;
+    }
+    
     try {
       const permission = await Notification.requestPermission();
-      this.permission = permission;
       return permission === 'granted';
     } catch (error) {
       console.error('Error requesting notification permission:', error);
       return false;
     }
-  }
-
-  /**
-   * Check if the browser has permission to show notifications
-   */
-  public hasPermission(): boolean {
-    return this.permission === 'granted';
-  }
-
-  /**
-   * Send a notification
-   */
-  public async sendNotification(options: NotificationOptions): Promise<boolean> {
-    if (!this.hasPermission()) {
-      const granted = await this.requestPermission();
-      if (!granted) {
-        console.log('Notification permission denied');
+  },
+  
+  sendNotification: async (options: NotificationOptions): Promise<boolean> => {
+    try {
+      if (Notification.permission === 'granted') {
+        await navigator.serviceWorker.ready;
+        
+        // Ensure title and body are defined
+        if (!options.title || !options.body) {
+          console.error('Notification title and body are required.');
+          return false;
+        }
+        
+        self.registration.showNotification(options.title, options);
+        return true;
+      } else {
+        console.warn('Notification permission not granted');
         return false;
       }
-    }
-
-    try {
-      // If we have a service worker, use it to show the notification
-      if (this.serviceWorkerRegistration) {
-        await this.serviceWorkerRegistration.showNotification(options.title, {
-          body: options.body,
-          icon: options.icon || '/favicon.ico',
-          badge: options.badge,
-          tag: options.tag,
-          data: options.data,
-          actions: options.actions,
-          requireInteraction: options.requireInteraction
-        });
-      } else {
-        // Fallback to regular notification
-        new Notification(options.title, {
-          body: options.body,
-          icon: options.icon || '/favicon.ico'
-        });
-      }
-      return true;
     } catch (error) {
       console.error('Error sending notification:', error);
       return false;
     }
-  }
-
-  /**
-   * Send a message reminder notification
-   */
-  public async sendMessageNotification(sender: string, message: string, avatarUrl?: string): Promise<boolean> {
-    return this.sendNotification({
+  },
+  
+  sendMessageNotification: async (sender: string, message: string, avatarUrl?: string): Promise<boolean> => {
+    const options: NotificationOptions = {
       title: `New message from ${sender}`,
-      body: message.length > 100 ? `${message.substring(0, 97)}...` : message,
+      body: message,
       icon: avatarUrl || '/favicon.ico',
-      tag: 'message',
-      data: { type: 'message', sender },
+      tag: 'new-message',
+      data: {
+        type: 'message',
+        sender: sender,
+        message: message
+      },
       actions: [
-        {
-          action: 'reply',
-          title: 'Reply'
-        },
-        {
-          action: 'view',
-          title: 'View'
-        }
-      ]
-    });
-  }
-
-  /**
-   * Send an event reminder notification
-   */
-  public async sendEventReminderNotification(eventTitle: string, eventTime: string, eventId: string): Promise<boolean> {
-    return this.sendNotification({
-      title: `Reminder: ${eventTitle}`,
-      body: `Your event starts at ${eventTime}`,
-      tag: 'event',
-      data: { type: 'event', eventId },
+        { action: 'reply', title: 'Reply', icon: '/icons/reply.png' },
+        { action: 'view', title: 'View', icon: '/icons/view.png' }
+      ],
+      requireInteraction: false
+    };
+    
+    return notificationService.sendNotification(options);
+  },
+  
+  sendEventReminderNotification: async (eventTitle: string, eventTime: string, eventId: string): Promise<boolean> => {
+    const options: NotificationOptions = {
+      title: 'Event Reminder',
+      body: `Upcoming event: ${eventTitle} at ${eventTime}`,
+      icon: '/favicon.ico',
+      tag: 'event-reminder',
+      data: {
+        type: 'event',
+        eventId: eventId
+      },
       actions: [
-        {
-          action: 'view',
-          title: 'View Details'
-        }
-      ]
-    });
-  }
-}
-
-// Export a singleton instance
-export const notificationService = NotificationService.getInstance();
+        { action: 'view', title: 'View Event', icon: '/icons/view.png' }
+      ],
+      requireInteraction: true
+    };
+    
+    return notificationService.sendNotification(options);
+  },
+};
