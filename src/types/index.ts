@@ -1,4 +1,3 @@
-
 export interface Place {
   id: string;
   name: string;
@@ -26,18 +25,25 @@ export interface Place {
 
 export interface UserProfile {
   id: string;
-  full_name?: string;
+  full_name: string;
   username?: string;
   avatar_url?: string;
+  email: string;
+  phone?: string;
   website?: string;
-  email?: string;
-  favorites?: Place[];
-  past_bookings?: any[];
+  bio?: string;
+  location?: string;
+  preferences?: {
+    theme?: 'light' | 'dark';
+    notifications?: boolean;
+    language?: string;
+  };
   bookings_count?: number;
   saved_count?: number;
   free_reservations?: number;
   loyalty_points?: number;
-  phone?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Event {
