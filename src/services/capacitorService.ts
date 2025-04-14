@@ -1,9 +1,22 @@
 
 import { Capacitor } from '@capacitor/core';
 import { Geolocation, Position } from '@capacitor/geolocation';
-import { PushNotifications, Token, PushNotificationSchema } from '@capacitor/push-notifications';
 import { Device } from '@capacitor/device';
 import { LocationData, NotificationOptions } from '@/types';
+
+// Conditional import for push notifications
+// This prevents build errors when the package isn't available yet
+let PushNotificationsPlugin: any = null;
+try {
+  // Dynamic import for push notifications
+  import('@capacitor/push-notifications').then(module => {
+    PushNotificationsPlugin = module.PushNotifications;
+  }).catch(err => {
+    console.warn('Push notifications plugin not available:', err.message);
+  });
+} catch (error) {
+  console.warn('Push notifications plugin not available');
+}
 
 export class CapacitorService {
   static isNative(): boolean {
@@ -52,34 +65,34 @@ export class CapacitorService {
 
   // Push Notifications methods
   static async initializePushNotifications(): Promise<boolean> {
-    if (!this.isNative()) return false;
+    if (!this.isNative() || !PushNotificationsPlugin) return false;
     
     try {
       // Request permission
-      const permissionStatus = await PushNotifications.requestPermissions();
+      const permissionStatus = await PushNotificationsPlugin.requestPermissions();
       if (permissionStatus.receive !== 'granted') {
         return false;
       }
       
       // Register with FCM/APNs
-      await PushNotifications.register();
+      await PushNotificationsPlugin.register();
       
       // Setup listeners
-      PushNotifications.addListener('registration', (token: Token) => {
+      PushNotificationsPlugin.addListener('registration', (token: { value: string }) => {
         console.log('Push registration success, token: ', token.value);
       });
       
-      PushNotifications.addListener('registrationError', (error: any) => {
+      PushNotificationsPlugin.addListener('registrationError', (error: any) => {
         console.error('Error on registration: ', error);
       });
       
-      PushNotifications.addListener('pushNotificationReceived', 
-        (notification: PushNotificationSchema) => {
+      PushNotificationsPlugin.addListener('pushNotificationReceived', 
+        (notification: any) => {
           console.log('Push notification received: ', notification);
       });
       
-      PushNotifications.addListener('pushNotificationActionPerformed', 
-        (notification: { actionId: string, notification: PushNotificationSchema }) => {
+      PushNotificationsPlugin.addListener('pushNotificationActionPerformed', 
+        (notification: any) => {
           console.log('Push notification action performed: ', notification);
       });
       
@@ -92,10 +105,12 @@ export class CapacitorService {
   
   // Method to send local notification when in native app
   static async sendLocalNotification(options: NotificationOptions): Promise<boolean> {
-    if (!this.isNative()) return false;
+    if (!this.isNative() || !PushNotificationsPlugin) return false;
     
     try {
-      // We're using PushNotifications.localNotification, but could use Local Notifications plugin instead
+      // We're using a mock implementation for now
+      // In a real app, we would implement this using Capacitor's local notifications
+      console.log('Would send notification:', options);
       return true;
     } catch (error) {
       console.error('Error sending local notification:', error);
