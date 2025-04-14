@@ -9,11 +9,22 @@ import SettingsTab from "@/components/SettingsTab";
 import HelpTab from "@/components/HelpTab";
 import { useAuthContext } from "@/hooks/useAuthContext";
 import { useNotifications } from "@/hooks/useNotifications";
+import { Place } from '@/types';
+import { usePlaces } from '@/hooks/usePlaces';
 
 const Profile = () => {
   const { user, loading: authLoading } = useAuthContext();
   const [activeTab, setActiveTab] = useState("overview");
   const { isSupported: notificationsSupported } = useNotifications();
+  const { data: places } = usePlaces();
+
+  // Mock data for demonstration - in a real app, these would come from the backend
+  const mockFavorites = places?.slice(0, 3) || [];
+  const mockPastBookings = places?.slice(0, 2).map(place => ({
+    ...place,
+    booking_date: new Date().toISOString(),
+    status: 'completed'
+  })) || [];
 
   const mockUserProfile = {
     id: user?.id || "123",
@@ -23,8 +34,8 @@ const Profile = () => {
     email: user?.email || "sarah@example.com",
     phone: "+1 555-123-4567",
     website: "www.sarahjohnson.com",
-    bookings_count: 12,
-    saved_count: 24,
+    bookings_count: mockPastBookings.length,
+    saved_count: mockFavorites.length,
     free_reservations: 2,
     loyalty_points: 450
   };
@@ -60,11 +71,19 @@ const Profile = () => {
         <TabsContent value="overview" className="space-y-6 mt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="col-span-1 md:col-span-2">
-              <ProfileOverview user={mockUserProfile} />
+              <ProfileOverview 
+                favorites={mockFavorites}
+                pastBookings={mockPastBookings}
+              />
             </div>
             
             <div className="col-span-1">
-              <ProfileStats user={mockUserProfile} />
+              <ProfileStats 
+                bookingsCount={mockUserProfile.bookings_count}
+                savedCount={mockUserProfile.saved_count}
+                freeReservations={mockUserProfile.free_reservations}
+                loyaltyPoints={mockUserProfile.loyalty_points}
+              />
             </div>
           </div>
         </TabsContent>
@@ -76,7 +95,7 @@ const Profile = () => {
             <div className="text-center p-8 border rounded-lg">
               <h3 className="text-lg font-medium">Notifications Not Supported</h3>
               <p className="text-muted-foreground mt-2">
-                Push notifications are not supported in your browser. Try using a modern browser like Chrome or Safari.
+                Push notifications are not supported in your browser. Try using our mobile app for a better experience.
               </p>
             </div>
           )}
