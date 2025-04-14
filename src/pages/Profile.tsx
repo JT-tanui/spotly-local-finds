@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from 'react-router-dom';
-import { useAuthContext } from "@/hooks/useAuthContext";
+import { useAuth } from "@/hooks/useAuthContext";
 import { useNotifications } from "@/hooks/useNotifications";
 import { usePlaces } from '@/hooks/usePlaces';
 import ProfileHeader from "@/components/ProfileHeader";
@@ -14,18 +14,22 @@ import SettingsTab from "@/components/SettingsTab";
 import HelpTab from "@/components/HelpTab";
 import { useToast } from '@/components/ui/use-toast';
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from 'lucide-react';
 import { UserProfile } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
 
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, loading: authLoading } = useAuthContext();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditing, setIsEditing] = useState(false);
   const { isSupported: notificationsSupported } = useNotifications();
-  const { data: places, isLoading: placesLoading } = usePlaces();
+  const { data: places } = usePlaces();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -33,30 +37,53 @@ const Profile = () => {
       return;
     }
 
-    // In a real app, fetch user profile from API
-    const mockProfile: UserProfile = {
-      id: user.id,
-      full_name: user.user_metadata?.full_name || "Sarah Johnson",
-      username: user.user_metadata?.username || "sarahjohnson",
-      avatar_url: user.user_metadata?.avatar_url || "https://i.pravatar.cc/150?img=23",
-      email: user.email || "sarah@example.com",
-      phone: "+1 555-123-4567",
-      website: "www.sarahjohnson.com",
-      bio: "Food enthusiast and adventure seeker",
-      location: "San Francisco, CA",
-      bookings_count: 5,
-      saved_count: 12,
-      free_reservations: 2,
-      loyalty_points: 450,
+    const fetchUserProfile = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          setUserProfile({
+            ...data,
+            stats: {
+              bookings_count: data.bookings_count || 0,
+              saved_count: data.saved_count || 0,
+              free_reservations: data.free_reservations || 0,
+              loyalty_points: data.loyalty_points || 0,
+            }
+          });
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load profile');
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load profile data. Please try again later.",
+        });
+      } finally {
+        setLoading(false);
+      }
     };
 
-    setUserProfile(mockProfile);
-    setLoading(false);
-  }, [user, navigate]);
+    fetchUserProfile();
+  }, [user, navigate, toast]);
 
   const handleProfileUpdate = async (updatedProfile: Partial<UserProfile>) => {
+    if (!user) return;
+    
     try {
-      // In a real app, send to API
+      const { error } = await supabase
+        .from('profiles')
+        .update(updatedProfile)
+        .eq('id', user.id);
+
+      if (error) throw error;
+
       setUserProfile(prev => prev ? { ...prev, ...updatedProfile } : null);
       toast({
         title: "Profile updated",
@@ -65,14 +92,14 @@ const Profile = () => {
       setIsEditing(false);
     } catch (error) {
       toast({
+        variant: "destructive",
         title: "Error",
         description: "Failed to update profile. Please try again.",
-        variant: "destructive",
       });
     }
   };
 
-  if (loading || authLoading) {
+  if (loading) {
     return (
       <div className="container px-4 py-6 max-w-4xl mx-auto space-y-6">
         <Skeleton className="h-32 w-full rounded-xl" />
@@ -80,6 +107,17 @@ const Profile = () => {
           <Skeleton className="h-4 w-32" />
           <Skeleton className="h-12 w-full" />
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container px-4 py-6 max-w-4xl mx-auto">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -137,10 +175,10 @@ const Profile = () => {
               
               <div className="col-span-1">
                 <ProfileStats 
-                  bookingsCount={userProfile.bookings_count || 0}
-                  savedCount={userProfile.saved_count || 0}
-                  freeReservations={userProfile.free_reservations || 0}
-                  loyaltyPoints={userProfile.loyalty_points || 0}
+                  bookingsCount={userProfile.stats?.bookings_count || 0}
+                  savedCount={userProfile.stats?.saved_count || 0}
+                  freeReservations={userProfile.stats?.free_reservations || 0}
+                  loyaltyPoints={userProfile.stats?.loyalty_points || 0}
                 />
               </div>
             </div>
@@ -160,7 +198,10 @@ const Profile = () => {
           </TabsContent>
           
           <TabsContent value="settings" className="mt-6">
-            <SettingsTab user={userProfile} onUpdateProfile={handleProfileUpdate} />
+            <SettingsTab 
+              user={userProfile} 
+              onUpdateProfile={handleProfileUpdate}
+            />
           </TabsContent>
           
           <TabsContent value="help" className="mt-6">

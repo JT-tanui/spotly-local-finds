@@ -37,11 +37,16 @@ export interface UserProfile {
     theme?: 'light' | 'dark';
     notifications?: boolean;
     language?: string;
+    email_frequency?: 'daily' | 'weekly' | 'never';
+    push_notifications?: boolean;
+    privacy?: 'public' | 'private';
   };
-  bookings_count?: number;
-  saved_count?: number;
-  free_reservations?: number;
-  loyalty_points?: number;
+  stats?: {
+    bookings_count: number;
+    saved_count: number;
+    free_reservations: number;
+    loyalty_points: number;
+  };
   created_at?: string;
   updated_at?: string;
 }
