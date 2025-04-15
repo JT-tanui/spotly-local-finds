@@ -31,6 +31,7 @@ const AppRoutes = () => {
   const isTabletOrDesktop = useIsTablet() || useIsDesktop();
   const isNative = CapacitorService.isNative();
   
+  // Initialize app and notifications
   useEffect(() => {
     // Initialize notifications when the app starts
     const initApp = async () => {
@@ -45,7 +46,10 @@ const AppRoutes = () => {
     };
     
     initApp();
-    
+  }, [isNative]);
+  
+  // Handle visibility changes separately
+  useEffect(() => {
     // Add visibility change listener to detect when app comes to foreground
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -59,7 +63,7 @@ const AppRoutes = () => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isNative]);
+  }, []);
   
   return (
     <>

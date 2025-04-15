@@ -9,12 +9,12 @@ import { LocationData } from '@/types';
 
 // Mock cities for search suggestions
 const popularCities = [
-  { city: 'New York', lat: 40.7128, lng: -74.0060 },
-  { city: 'Los Angeles', lat: 34.0522, lng: -118.2437 },
-  { city: 'Chicago', lat: 41.8781, lng: -87.6298 },
-  { city: 'Miami', lat: 25.7617, lng: -80.1918 },
-  { city: 'San Francisco', lat: 37.7749, lng: -122.4194 },
-  { city: 'Seattle', lat: 47.6062, lng: -122.3321 }
+  { city: 'New York', latitude: 40.7128, longitude: -74.0060 },
+  { city: 'Los Angeles', latitude: 34.0522, longitude: -118.2437 },
+  { city: 'Chicago', latitude: 41.8781, longitude: -87.6298 },
+  { city: 'Miami', latitude: 25.7617, longitude: -80.1918 },
+  { city: 'San Francisco', latitude: 37.7749, longitude: -122.4194 },
+  { city: 'Seattle', latitude: 47.6062, longitude: -122.3321 }
 ];
 
 const LocationPicker = () => {
@@ -32,12 +32,7 @@ const LocationPicker = () => {
     if (query.length > 1) {
       // Filter cities based on search query
       const results = popularCities
-        .filter(city => city.city.toLowerCase().includes(query.toLowerCase()))
-        .map(city => ({
-          lat: city.lat,
-          lng: city.lng,
-          city: city.city
-        }));
+        .filter(city => city.city.toLowerCase().includes(query.toLowerCase()));
       
       setSearchResults(results);
     } else {
@@ -142,7 +137,7 @@ const LocationPicker = () => {
         <div className="mt-6 p-3 border rounded-lg">
           <h3 className="text-sm font-medium">Current Location</h3>
           <p className="text-sm text-muted-foreground">
-            {location.city || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+            {location.city || `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`}
           </p>
         </div>
       )}

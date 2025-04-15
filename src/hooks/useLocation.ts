@@ -45,9 +45,10 @@ export function useLocation() {
             setLoading(false);
           },
           (error) => {
-            throw error;
+            console.warn("Geolocation error:", error.message);
+            throw new Error(`Geolocation error: ${error.message}`);
           },
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
       }
     } catch (error) {
@@ -72,8 +73,18 @@ export function useLocation() {
 
   // Initialize with current location
   useEffect(() => {
-    getCurrentLocation();
-  }, [isNative]);
+    // Don't try to get location immediately to avoid permission prompts before user action
+    // Just set a default location instead
+    setLocation({
+      latitude: 34.052235,
+      longitude: -118.243683,
+      city: "Los Angeles"
+    });
+    setLoading(false);
+    
+    // Commented out for now to avoid automatic geolocation prompt
+    // getCurrentLocation();
+  }, []);
 
   return {
     location,
