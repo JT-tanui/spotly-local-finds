@@ -13,19 +13,20 @@ import { Event, Place } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { usePlaces } from '@/hooks/usePlaces';
 
 interface CreateEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   onEventCreated: (event: Event) => void;
-  places: Place[];
+  places?: Place[];
 }
 
 const CreateEventModal: React.FC<CreateEventModalProps> = ({
   isOpen,
   onClose,
   onEventCreated,
-  places
+  places: providedPlaces
 }) => {
   const { toast } = useToast();
   const [title, setTitle] = useState('');
@@ -35,6 +36,10 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [placeId, setPlaceId] = useState('');
   const [maxParticipants, setMaxParticipants] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // Fetch places from the hook if not provided as props
+  const { places: placesFromHook } = usePlaces();
+  const places = providedPlaces || placesFromHook || [];
   
   const timeOptions = [
     '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', 
@@ -173,11 +178,17 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 <SelectValue placeholder="Select a location" />
               </SelectTrigger>
               <SelectContent>
-                {places.map((place) => (
-                  <SelectItem key={place.id} value={place.id}>
-                    {place.name}
+                {places && places.length > 0 ? (
+                  places.map((place) => (
+                    <SelectItem key={place.id} value={place.id}>
+                      {place.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-places" disabled>
+                    No locations available
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
           </div>

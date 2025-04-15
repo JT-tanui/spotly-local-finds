@@ -179,11 +179,10 @@ export interface EventDetailsModalProps {
 }
 
 export interface CreateEventModalProps {
-  open: boolean;
+  isOpen: boolean;
   onClose: () => void;
   onEventCreated: (newEvent: Event) => void;
-  scheduleNotification: boolean;
-  onToggleNotification: React.Dispatch<React.SetStateAction<boolean>>;
+  places?: Place[];
 }
 
 export interface EventCardProps {

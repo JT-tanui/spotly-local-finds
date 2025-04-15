@@ -225,8 +225,10 @@ const GroupEvents: React.FC = () => {
 
       {isCreateEventModalOpen && (
         <CreateEventModal
+          isOpen={isCreateEventModalOpen}
           onClose={() => setIsCreateEventModalOpen(false)}
           onEventCreated={handleCreateEvent}
+          places={places}
         />
       )}
     </div>
