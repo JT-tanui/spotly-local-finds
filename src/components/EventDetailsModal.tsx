@@ -1,360 +1,217 @@
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, Clock, Users, PartyPopper, User, MoreHorizontal } from 'lucide-react';
-import { Event, EventParticipant, Place } from '@/types';
 import { format } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
-import { InvitePeopleForm } from './InvitePeopleForm';
+import { CalendarIcon, MapPinIcon, UsersIcon, X, Check, Clock } from 'lucide-react';
+import { Event, ParticipantData } from '@/types';
+import { useAuth } from '@/hooks/useAuthContext';
+import { useEvents } from '@/hooks/useEvents';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 
 interface EventDetailsModalProps {
-  isOpen: boolean;
+  event?: Event | null;
+  open: boolean;
   onClose: () => void;
-  event: Event;
-  place: Place;
-  isOwner: boolean;
-  onUpdateEvent: () => void;
 }
 
-interface ParticipantData {
-  id: string;
-  event_id: string;
-  user_id: string;
-  status: 'invited' | 'accepted' | 'declined' | 'maybe' | 'going' | 'not_going';
-  created_at: string;
-  user?: {
-    full_name?: string;
-    avatar_url?: string;
-  };
-}
-
-const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
-  isOpen,
-  onClose,
-  event,
-  place,
-  isOwner,
-  onUpdateEvent
-}) => {
-  const { toast } = useToast();
-  const navigate = useNavigate();
+const EventDetailsModal = ({ event, open, onClose }: EventDetailsModalProps) => {
+  const { user } = useAuth();
+  const { useEvent, useToggleParticipation } = useEvents();
+  const [activeTab, setActiveTab] = useState<string>('details');
   const [participants, setParticipants] = useState<ParticipantData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showInviteForm, setShowInviteForm] = useState(false);
-  const [currentUserStatus, setCurrentUserStatus] = useState<string | null>(null);
   
+  // Fetch event details including participants
+  const { data: eventDetails, isLoading } = useEvent(event?.id || '');
+  const { mutate: toggleParticipation } = useToggleParticipation();
+
+  // Update participants when event details change
   useEffect(() => {
-    if (isOpen) {
-      fetchParticipants();
-      checkCurrentUserStatus();
-    }
-  }, [isOpen, event.id]);
-  
-  const fetchParticipants = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('event_participants')
-        .select(`
-          *,
-          user:profiles(full_name, avatar_url)
-        `)
-        .eq('event_id', event.id);
-        
-      if (error) throw error;
+    if (eventDetails?.participants) {
+      // Ensure participants match the expected ParticipantData type
+      const typedParticipants = eventDetails.participants.map(participant => ({
+        id: participant.id,
+        user_id: participant.user_id,
+        event_id: participant.event_id,
+        status: participant.status as 'going' | 'maybe' | 'not_going' | 'invited' | 'accepted' | 'declined',
+        created_at: participant.created_at,
+        user: participant.user
+      }));
       
-      setParticipants(data || []);
-    } catch (error) {
-      console.error('Error fetching participants:', error);
-    } finally {
-      setLoading(false);
+      setParticipants(typedParticipants);
     }
-  };
-  
-  const checkCurrentUserStatus = async () => {
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
-      
-      const { data } = await supabase
-        .from('event_participants')
-        .select('status')
-        .eq('event_id', event.id)
-        .eq('user_id', userData.user.id)
-        .maybeSingle();
-        
-      if (data) {
-        setCurrentUserStatus(data.status);
-      }
-    } catch (error) {
-      console.error('Error checking user status:', error);
-    }
-  };
-  
-  const updateAttendanceStatus = async (status: 'accepted' | 'declined' | 'maybe') => {
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) {
-        toast({
-          title: "Authentication required",
-          description: "Please sign in to update your attendance",
-          variant: "destructive"
-        });
-        return;
-      }
+  }, [eventDetails]);
 
-      const { data: existingParticipant } = await supabase
-        .from('event_participants')
-        .select('*')
-        .eq('event_id', event.id)
-        .eq('user_id', userData.user.id)
-        .single();
-
-      if (existingParticipant) {
-        const { error } = await supabase
-          .from('event_participants')
-          .update({ status })
-          .eq('id', existingParticipant.id);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('event_participants')
-          .insert({
-            event_id: event.id,
-            user_id: userData.user.id,
-            status
-          });
-
-        if (error) throw error;
-      }
-
-      setCurrentUserStatus(status);
-      toast({
-        title: "Status updated",
-        description: `You've ${status} this event`
-      });
-      
-      fetchParticipants();
-      onUpdateEvent();
-    } catch (error) {
-      console.error('Error updating attendance:', error);
-      toast({
-        title: "Failed to update status",
-        description: "Please try again later",
-        variant: "destructive"
-      });
-    }
+  const handleParticipation = (status: 'going' | 'maybe' | 'not_going') => {
+    if (!event?.id) return;
+    toggleParticipation({ eventId: event.id, status });
   };
 
-  const formatParticipantStatus = (status: string) => {
-    switch (status) {
-      case 'accepted': return 'Going';
-      case 'declined': return 'Not Going';
-      case 'maybe': return 'Maybe';
-      case 'invited': return 'Invited';
-      case 'going': return 'Going';
-      case 'not_going': return 'Not Going';
-      default: return status;
-    }
-  };
-  
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'accepted':
-      case 'going':
-        return 'bg-green-100 text-green-800';
-      case 'declined':
-      case 'not_going':
-        return 'bg-red-100 text-red-800';
-      case 'maybe':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'invited':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-  
-  const handleInvitePeople = (emails: string[]) => {
-    // In a real app, this would send invitations to the provided emails
-    toast({
-      title: "Invitations sent",
-      description: `${emails.length} people have been invited to this event`
-    });
-    setShowInviteForm(false);
-  };
+  const userParticipation = participants.find(p => p.user_id === user?.id)?.status || null;
+
+  if (!event) return null;
+
+  const formattedDate = event.event_date 
+    ? format(new Date(event.event_date), 'EEEE, MMMM d, yyyy · h:mm a')
+    : 'Date not available';
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-xl">{event.title}</DialogTitle>
-        </DialogHeader>
-        
-        <div className="mt-2">
-          <div className="flex flex-col space-y-4">
-            {/* Event Details */}
-            <div className="space-y-3">
-              <div className="flex items-start">
-                <Calendar className="w-5 h-5 mr-3 mt-0.5 text-gray-500" />
-                <div>
-                  <div className="font-medium">{format(new Date(event.event_date), 'EEEE, MMMM d, yyyy')}</div>
-                  <div className="text-sm text-muted-foreground">{format(new Date(event.event_date), 'h:mm a')}</div>
-                </div>
-              </div>
+    <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetHeader className="mb-4">
+          <SheetTitle className="text-xl font-bold">{event.title}</SheetTitle>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={onClose}
+            className="absolute right-4 top-4 rounded-full p-2 h-8 w-8"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </SheetHeader>
+
+        {isLoading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-32 w-full rounded-md" />
+            <Skeleton className="h-4 w-3/4 rounded-md" />
+            <Skeleton className="h-4 w-1/2 rounded-md" />
+          </div>
+        ) : (
+          <>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+              <TabsList className="grid grid-cols-2 w-full mb-4">
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="participants">
+                  Participants ({participants.length})
+                </TabsTrigger>
+              </TabsList>
               
-              <div className="flex items-start">
-                <MapPin className="w-5 h-5 mr-3 mt-0.5 text-gray-500" />
-                <div>
-                  <div className="font-medium">{place.name}</div>
-                  <div className="text-sm text-muted-foreground">{place.address || 'Address not available'}</div>
+              <TabsContent value="details" className="space-y-4">
+                {event.place && (
+                  <div className="aspect-video w-full overflow-hidden rounded-md mb-4">
+                    <img
+                      src={event.place.imageUrl || '/placeholder.svg'}
+                      alt={event.place.name}
+                      className="object-cover w-full h-full"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <CalendarIcon className="h-4 w-4" />
+                  <span className="text-sm">{formattedDate}</span>
                 </div>
-              </div>
+                
+                {event.place && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <MapPinIcon className="h-4 w-4" />
+                    <span className="text-sm">{event.place.name} - {event.place.address}</span>
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <UsersIcon className="h-4 w-4" />
+                  <span className="text-sm">
+                    {event.max_participants ? 
+                      `${participants.length} / ${event.max_participants} participants` : 
+                      `${participants.length} participants`}
+                  </span>
+                </div>
+
+                {event.description && (
+                  <div className="mt-4 text-sm">
+                    <h4 className="font-medium mb-1">About this event</h4>
+                    <p className="text-muted-foreground whitespace-pre-line">{event.description}</p>
+                  </div>
+                )}
+
+                {event.creator && (
+                  <div className="flex items-center gap-3 mt-4">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage 
+                        src={event.creator.avatar_url || ''} 
+                        alt={event.creator.full_name || 'Event creator'} 
+                      />
+                      <AvatarFallback>
+                        {(event.creator.full_name || '').charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Created by</p>
+                      <p className="text-sm font-medium">{event.creator.full_name}</p>
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
               
-              {event.description && (
-                <div className="mt-3 text-sm border-t pt-3">
-                  {event.description}
-                </div>
-              )}
-            </div>
-            
-            {/* Attendance Section */}
-            <div>
-              <h3 className="text-sm font-semibold flex items-center mb-2">
-                <Users className="w-4 h-4 mr-2" />
-                Attendees ({participants.filter(p => p.status === 'accepted' || p.status === 'going').length})
-              </h3>
-              
-              {loading ? (
-                <div className="text-center py-2">
-                  <p className="text-sm text-muted-foreground">Loading participants...</p>
-                </div>
-              ) : (
-                <div className="max-h-40 overflow-y-auto">
-                  {participants.length > 0 ? (
+              <TabsContent value="participants">
+                <div className="space-y-4">
+                  <h4 className="font-medium text-sm">People attending</h4>
+                  
+                  {participants.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No one has joined this event yet. Be the first!</p>
+                  ) : (
                     <div className="space-y-2">
                       {participants.map((participant) => (
-                        <div key={participant.id} className="flex justify-between items-center text-sm">
-                          <div className="flex items-center">
-                            <User className="w-4 h-4 mr-2 text-gray-500" />
-                            <span>
-                              {participant.user?.full_name || participant.user_id.substring(0, 8)}
-                            </span>
+                        <div key={participant.id} className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage 
+                                src={participant.user?.avatar_url || ''} 
+                                alt={participant.user?.full_name || ''} 
+                              />
+                              <AvatarFallback>
+                                {participant.user?.full_name?.charAt(0) || '?'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm">{participant.user?.full_name}</span>
                           </div>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusBadgeClass(participant.status)}`}>
-                            {formatParticipantStatus(participant.status)}
-                          </span>
+                          <Badge variant={
+                            participant.status === 'going' ? 'default' : 
+                            participant.status === 'maybe' ? 'outline' : 'secondary'
+                          }>
+                            {participant.status}
+                          </Badge>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No participants yet</p>
                   )}
                 </div>
-              )}
-              
-              {isOwner && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-2 w-full"
-                  onClick={() => setShowInviteForm(true)}
-                >
-                  <Users className="w-4 h-4 mr-2" />
-                  Invite People
-                </Button>
-              )}
-            </div>
-            
-            {/* Action Buttons */}
-            {!isOwner && event.status === 'active' && (
-              <div className="border-t pt-3 flex justify-between">
-                <div className="text-sm font-medium">
-                  Your response:
-                </div>
-                <div className="flex space-x-2">
-                  <Button 
-                    variant={currentUserStatus === 'accepted' || currentUserStatus === 'going' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => updateAttendanceStatus('accepted')}
-                  >
-                    Going
-                  </Button>
-                  <Button
-                    variant={currentUserStatus === 'maybe' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => updateAttendanceStatus('maybe')}
-                  >
-                    Maybe
-                  </Button>
-                  <Button
-                    variant={currentUserStatus === 'declined' || currentUserStatus === 'not_going' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => updateAttendanceStatus('declined')}
-                  >
-                    Not Going
-                  </Button>
-                </div>
-              </div>
-            )}
-            
-            <div className="border-t pt-3 flex justify-between">
-              <Button
-                variant="outline"
-                onClick={() => navigate(`/place/${place.id}`)}
-              >
-                View Location
-              </Button>
-              
-              {isOwner && event.status === 'active' && (
+              </TabsContent>
+            </Tabs>
+
+            {event.status === 'active' && user && (
+              <SheetFooter className="flex-row gap-2 sm:justify-start">
                 <Button
-                  variant="destructive"
-                  onClick={async () => {
-                    try {
-                      const { error } = await supabase
-                        .from('events')
-                        .update({ status: 'cancelled' })
-                        .eq('id', event.id);
-
-                      if (error) throw error;
-
-                      toast({
-                        title: "Event cancelled",
-                        description: "The event has been cancelled"
-                      });
-                      
-                      onUpdateEvent();
-                      onClose();
-                    } catch (error) {
-                      console.error('Error cancelling event:', error);
-                      toast({
-                        title: "Failed to cancel event",
-                        description: "Please try again later",
-                        variant: "destructive"
-                      });
-                    }
-                  }}
+                  variant={userParticipation === 'going' ? 'default' : 'outline'}
+                  onClick={() => handleParticipation('going')}
                 >
-                  Cancel Event
+                  <Check className="mr-2 h-4 w-4" />
+                  I'm Going
                 </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-      
-      {showInviteForm && (
-        <InvitePeopleForm
-          isOpen={showInviteForm}
-          onClose={() => setShowInviteForm(false)}
-          onInvite={handleInvitePeople}
-          eventId={event.id}
-        />
-      )}
-    </Dialog>
+                <Button
+                  variant={userParticipation === 'maybe' ? 'default' : 'outline'}
+                  onClick={() => handleParticipation('maybe')}
+                >
+                  <Clock className="mr-2 h-4 w-4" />
+                  Maybe
+                </Button>
+                <Button
+                  variant={userParticipation === 'not_going' ? 'default' : 'outline'}
+                  onClick={() => handleParticipation('not_going')}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Can't Go
+                </Button>
+              </SheetFooter>
+            )}
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 };
 

@@ -1,30 +1,34 @@
 
 import React from 'react';
-import { Button } from "@/components/ui/button";
+import { Button } from '@/components/ui/button';
 import { LucideIcon } from 'lucide-react';
 
 interface IconFilterProps {
-  isActive?: boolean;
-  onClick: () => void;
   icon: LucideIcon;
   label: string;
+  isActive?: boolean;
+  onClick: () => void;
 }
 
-export const IconFilter: React.FC<IconFilterProps> = ({ 
-  isActive = false, 
-  onClick, 
-  icon: Icon, 
-  label 
+export const IconFilter: React.FC<IconFilterProps> = ({
+  icon: Icon,
+  label,
+  isActive = false,
+  onClick,
 }) => {
   return (
-    <Button 
-      variant={isActive ? "default" : "outline"} 
-      size="sm" 
-      onClick={onClick} 
-      className="flex items-center space-x-2"
-    >
-      <Icon className="w-4 h-4" />
-      <span>{label}</span>
-    </Button>
+    <div className="flex flex-col items-center space-y-1">
+      <Button
+        variant={isActive ? "default" : "secondary"}
+        size="sm"
+        className="h-14 w-14 rounded-full"
+        onClick={onClick}
+      >
+        <Icon className="h-6 w-6" />
+      </Button>
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </div>
   );
 };
+
+export default IconFilter;

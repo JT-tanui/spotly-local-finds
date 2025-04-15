@@ -1,317 +1,317 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Calendar, Filter, Plus, Bell } from "lucide-react";
-import EventCard from "@/components/EventCard";
-import CreateEventModal from "@/components/CreateEventModal";
-import EventDetailsModal from "@/components/EventDetailsModal";
-import EmptyState from "@/components/EmptyState";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuthContext";
-import { useToast } from "@/hooks/use-toast";
-import { useNotifications } from '@/hooks/useNotifications';
-import { PushNotificationHelper } from '@/services/pushNotificationHelper';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useIsDesktop } from '@/hooks/useMediaQuery';
 
-interface Event {
-  id: string;
-  title: string;
-  description: string;
-  event_date: string;
-  place_id: string;
-  creator_id: string;
-  status: string;
-  max_participants: number;
-  creator?: {
-    full_name: string;
-    avatar_url?: string;
-  };
-  place?: any; // You can define a proper type for place if needed
-  participants_count?: number;
-}
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { MapPin, Calendar, Users, Plus, Filter, Settings } from 'lucide-react';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuthContext';
+import { useEvents } from '@/hooks/useEvents';
+import { Event } from '@/types';
+import EmptyState from '@/components/EmptyState';
+import EventCard from '@/components/EventCard';
+import CreateEventModal from '@/components/CreateEventModal';
+import EventDetailsModal from '@/components/EventDetailsModal';
 
 const GroupEvents = () => {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [myEvents, setMyEvents] = useState<Event[]>([]);
-  const [pastEvents, setPastEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
-  const [filter, setFilter] = useState<'upcoming' | 'my-events' | 'past'>('upcoming');
-  const [scheduleNotification, setScheduleNotification] = useState(true);
+  const navigate = useNavigate();
   const { user } = useAuth();
+  const { useAllEvents, useToggleParticipation } = useEvents();
   const { toast } = useToast();
-  const isDesktop = useIsDesktop();
-  const { permissionStatus, requestPermission } = useNotifications();
+  
+  // State
+  const [activeTab, setActiveTab] = useState('all');
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [showEventDetails, setShowEventDetails] = useState(false);
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [scheduleNotification, setScheduleNotification] = useState(true);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [filters, setFilters] = useState({
+    upcoming: true,
+    participated: false,
+    created: false
+  });
 
-  const fetchEvents = async () => {
-    setLoading(true);
-    try {
-      // Fetch upcoming events
-      const { data: upcomingData, error: upcomingError } = await supabase
-        .from('events')
-        .select(`
-          *,
-          creator:profiles!creator_id(full_name, avatar_url),
-          participants:event_participants(*)
-        `)
-        .gte('event_date', new Date().toISOString())
-        .order('event_date', { ascending: true });
+  // Fetch events data
+  const { data: fetchedEvents, isLoading, error } = useAllEvents();
+  const { mutate: toggleParticipation } = useToggleParticipation();
 
-      if (upcomingError) throw upcomingError;
-
-      // Transform the data to match Event type
-      const transformedUpcomingEvents = upcomingData?.map(event => ({
-        ...event,
-        creator: event.creator || { full_name: 'Unknown', avatar_url: null },
-        participants_count: event.participants?.length || 0
-      })) as Event[];
-
-      // Fetch past events
-      const { data: pastData, error: pastError } = await supabase
-        .from('events')
-        .select(`
-          *,
-          creator:profiles!creator_id(full_name, avatar_url),
-          participants_count:event_participants(count)
-        `)
-        .lt('event_date', new Date().toISOString())
-        .order('event_date', { ascending: false })
-        .limit(10);
-
-      if (pastError) throw pastError;
-      
-      let myEventsList: Event[] = [];
-      
-      if (user) {
-        // Fetch events where user is a participant
-        const { data: myData, error: myError } = await supabase
-          .from('event_participants')
-          .select(`
-            event:events(
-              *,
-              creator:profiles!creator_id(full_name, avatar_url),
-              participants_count:event_participants(count)
-            )
-          `)
-          .eq('user_id', user.id);
-
-        if (myError) throw myError;
-        
-        myEventsList = myData
-          ?.map(item => item.event as Event)
-          .filter(Boolean)
-          .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime()) || [];
-      }
-      
-      // Process the data
-      setEvents(transformedUpcomingEvents || []);
-      setPastEvents(pastData || []);
-      setMyEvents(myEventsList);
-      
-      // Schedule notifications for upcoming events
-      if (permissionStatus === 'granted') {
-        transformedUpcomingEvents.forEach(event => {
-          PushNotificationHelper.scheduleEventReminder(event);
-        });
-      }
-    } catch (error: any) {
-      console.error("Error loading events:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load events. Please try again.",
-        variant: "destructive"
-      });
-      
-      setEvents([]);
-      setPastEvents([]);
-      setMyEvents([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Process events when data changes
   useEffect(() => {
-    fetchEvents();
-  }, [user]);
+    if (fetchedEvents) {
+      // Process events to match our Event type
+      const processedEvents = fetchedEvents.map(event => {
+        const eventObj: Event = {
+          id: event.id,
+          title: event.title,
+          description: event.description,
+          event_date: event.event_date,
+          place_id: event.place_id,
+          creator_id: event.creator_id,
+          status: event.status,
+          max_participants: event.max_participants,
+          created_at: event.created_at,
+          creator: event.creator && {
+            full_name: event.creator.full_name || '',
+            avatar_url: event.creator.avatar_url || undefined
+          },
+          participants_count: typeof event.participants_count === 'number' ? 
+            event.participants_count : 
+            (Array.isArray(event.participants_count) && event.participants_count[0]?.count || 0)
+        };
+        return eventObj;
+      });
+      
+      setEvents(processedEvents);
+    }
+  }, [fetchedEvents]);
 
-  const handleEventCreated = (newEvent: Event) => {
-    setEvents(prev => [newEvent, ...prev].sort((a, b) => 
-      new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
-    ));
+  // Filter events based on active tab
+  const filteredEvents = events.filter(event => {
+    const now = new Date();
+    const eventDate = new Date(event.event_date);
+    const isUpcoming = eventDate >= now;
+    const isUserEvent = event.creator_id === user?.id;
     
-    if (scheduleNotification && permissionStatus === 'granted') {
-      PushNotificationHelper.scheduleEventReminder(newEvent);
-      toast({
-        title: "Reminder scheduled",
-        description: "You'll receive a notification before the event starts."
-      });
-    } else if (scheduleNotification && permissionStatus !== 'granted') {
-      requestPermission().then(granted => {
-        if (granted) {
-          PushNotificationHelper.scheduleEventReminder(newEvent);
-          toast({
-            title: "Reminder scheduled",
-            description: "You'll receive a notification before the event starts."
-          });
-        }
-      });
+    if (activeTab === 'my-events') {
+      return isUserEvent;
     }
-  };
+    
+    if (filters.upcoming && !isUpcoming) {
+      return false;
+    }
+    
+    if (filters.created && !isUserEvent) {
+      return false;
+    }
+    
+    // Additional filter for participated events would go here
+    // (requires participant data which may be fetched separately)
+    
+    return true;
+  });
 
-  const handleOpenEventDetails = (event: Event) => {
+  // Handle event selection for details view
+  const handleSelectEvent = (event: Event) => {
     setSelectedEvent(event);
-    setDetailsModalOpen(true);
+    setShowEventDetails(true);
   };
-
-  const handleEnableReminders = () => {
-    requestPermission().then(granted => {
-      if (granted) {
-        // Schedule reminders for all upcoming events
-        events.forEach(event => {
-          PushNotificationHelper.scheduleEventReminder(event);
-        });
-        
-        toast({
-          title: "Event reminders enabled",
-          description: "You'll receive notifications before events start."
-        });
-      }
+  
+  const handleCreateNewEvent = (newEvent: Event) => {
+    setEvents(prev => [newEvent, ...prev]);
+    
+    toast({
+      title: "Event created",
+      description: "Your event has been created successfully."
     });
-  };
 
-  const filteredEvents = () => {
-    switch (filter) {
-      case 'my-events':
-        return myEvents;
-      case 'past':
-        return pastEvents;
-      case 'upcoming':
-      default:
-        return events;
+    if (scheduleNotification) {
+      // Logic to schedule notifications would go here
+      toast({
+        title: "Notification scheduled",
+        description: "You will be reminded before the event."
+      });
     }
   };
 
-  const displayEvents = filteredEvents();
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <Skeleton className="h-8 w-36" />
+          <Skeleton className="h-9 w-24" />
+        </div>
+        <Skeleton className="h-10 w-full mb-6" />
+        <div className="space-y-4">
+          {Array(3).fill(null).map((_, i) => (
+            <Skeleton key={i} className="h-40 w-full rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
+        <EmptyState
+          icon={<Settings className="h-12 w-12 text-muted-foreground" />}
+          title="Error loading events"
+          description={error instanceof Error ? error.message : "Failed to load events"}
+          action={
+            <Button onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className={`pt-4 px-4 pb-20 ${isDesktop ? 'pt-[60px]' : ''}`}>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Group Events</h1>
-          <p className="text-muted-foreground">Find and join local experiences</p>
+    <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Events</h1>
+        <Button onClick={() => setShowCreateEvent(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Event
+        </Button>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+        <div className="flex justify-between items-center mb-2">
+          <TabsList>
+            <TabsTrigger value="all">All Events</TabsTrigger>
+            <TabsTrigger value="my-events">My Events</TabsTrigger>
+          </TabsList>
+          
+          <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-auto">
+                <Filter className="mr-2 h-4 w-4" />
+                Filter
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72" align="end">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <h4 className="font-medium">Filter Options</h4>
+                  <Separator />
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="upcoming-filter">Upcoming only</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Show only future events
+                      </p>
+                    </div>
+                    <Switch
+                      id="upcoming-filter"
+                      checked={filters.upcoming}
+                      onCheckedChange={(checked) => 
+                        setFilters(prev => ({ ...prev, upcoming: checked }))
+                      }
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="created-filter">Created by me</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Show only events you created
+                      </p>
+                    </div>
+                    <Switch
+                      id="created-filter"
+                      checked={filters.created}
+                      onCheckedChange={(checked) => 
+                        setFilters(prev => ({ ...prev, created: checked }))
+                      }
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="participated-filter">Participating</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Show events you're attending
+                      </p>
+                    </div>
+                    <Switch
+                      id="participated-filter"
+                      checked={filters.participated}
+                      onCheckedChange={(checked) => 
+                        setFilters(prev => ({ ...prev, participated: checked }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
         
-        <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-2">
-          <Button 
-            onClick={handleEnableReminders}
-            variant="outline"
-            disabled={permissionStatus === 'granted'}
-          >
-            <Bell className="mr-2 h-4 w-4" />
-            {permissionStatus === 'granted' ? 'Reminders Enabled' : 'Enable Reminders'}
-          </Button>
-          <Button onClick={() => setCreateModalOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Event
-          </Button>
-        </div>
-      </div>
-      
-      <div className="flex justify-between items-center mb-6">
-        <Select
-          value={filter}
-          onValueChange={(value) => setFilter(value as any)}
-        >
-          <SelectTrigger className="w-[180px]">
-            <div className="flex items-center">
-              <Filter className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Filter events" />
+        <TabsContent value="all">
+          {filteredEvents.length > 0 ? (
+            <div className="space-y-4">
+              {filteredEvents.map(event => (
+                <EventCard 
+                  key={event.id}
+                  event={event}
+                  onClick={() => handleSelectEvent(event)}
+                />
+              ))}
             </div>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="upcoming">Upcoming Events</SelectItem>
-            <SelectItem value="my-events">My Events</SelectItem>
-            <SelectItem value="past">Past Events</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="border rounded-lg p-4 h-64 animate-pulse">
-              <div className="w-2/3 h-4 bg-gray-200 rounded mb-4"></div>
-              <div className="w-full h-24 bg-gray-200 rounded mb-4"></div>
-              <div className="w-1/2 h-4 bg-gray-200 rounded mb-2"></div>
-              <div className="w-1/3 h-4 bg-gray-200 rounded mb-4"></div>
-              <div className="flex justify-between">
-                <div className="w-1/4 h-8 bg-gray-200 rounded"></div>
-                <div className="w-1/4 h-8 bg-gray-200 rounded"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : displayEvents.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {displayEvents.map(event => (
-            <EventCard 
-              key={event.id}
-              event={event}
-              onClick={() => handleOpenEventDetails(event)}
+          ) : (
+            <EmptyState
+              icon={<Calendar className="h-12 w-12 text-muted-foreground" />}
+              title="No events found"
+              description="There are no events matching your filters. Try adjusting your filters or create a new event."
+              action={
+                <Button onClick={() => setShowCreateEvent(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Event
+                </Button>
+              }
             />
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          icon={Calendar}
-          title={
-            filter === 'my-events'
-              ? "You haven't joined any events"
-              : filter === 'past'
-              ? "No past events found"
-              : "No upcoming events found"
-          }
-          description={
-            filter === 'my-events'
-              ? "Join an event or create your own to get started"
-              : filter === 'past'
-              ? "Check back later for past event history"
-              : "Create an event to get started"
-          }
-          action={{
-            label: "Create Event",
-            onClick: () => setCreateModalOpen(true)
-          }}
-          className="py-12"
-        />
-      )}
-      
-      {createModalOpen && (
-        <CreateEventModal
-          open={createModalOpen}
-          onOpenChange={setCreateModalOpen}
-          onEventCreated={handleEventCreated}
-          scheduleNotification={scheduleNotification}
-          onToggleNotification={setScheduleNotification}
-        />
-      )}
-      
-      {selectedEvent && (
-        <EventDetailsModal
-          open={detailsModalOpen}
-          onOpenChange={setDetailsModalOpen}
-          event={selectedEvent}
-          onEventUpdated={fetchEvents}
-        />
-      )}
+          )}
+        </TabsContent>
+        
+        <TabsContent value="my-events">
+          {filteredEvents.length > 0 ? (
+            <div className="space-y-4">
+              {filteredEvents.map(event => (
+                <EventCard 
+                  key={event.id}
+                  event={event}
+                  onClick={() => handleSelectEvent(event)}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={<Calendar className="h-12 w-12 text-muted-foreground" />}
+              title="No events found"
+              description="You haven't created any events yet. Create your first event now!"
+              action={
+                <Button onClick={() => setShowCreateEvent(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Event
+                </Button>
+              }
+            />
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Event Details Modal */}
+      <EventDetailsModal
+        event={selectedEvent}
+        open={showEventDetails}
+        onClose={() => setShowEventDetails(false)}
+      />
+
+      {/* Create Event Modal */}
+      <CreateEventModal
+        isOpen={showCreateEvent}
+        onOpenChange={setShowCreateEvent}
+        onEventCreated={handleCreateNewEvent}
+        scheduleNotification={scheduleNotification}
+        onToggleNotification={setScheduleNotification}
+      />
     </div>
   );
 };

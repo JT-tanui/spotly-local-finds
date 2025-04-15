@@ -1,553 +1,475 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { format, parseISO, isAfter } from 'date-fns';
+import { CalendarClock, Calendar, Award, Check, Clock, XCircle, MoreHorizontal } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, User, AlertTriangle, Plus, Ticket } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { Reservation, Place, Ticket as TicketType } from '@/types';
-import { useToast } from '@/hooks/use-toast';
-import { format, isPast } from 'date-fns';
-import { usePlaces } from '@/hooks/usePlaces';
-import { useLocation } from '@/hooks/useLocation';
-import { useIsMobile } from '@/hooks/useMediaQuery';
-import ReservationModal from '@/components/ReservationModal';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Reservation, Ticket } from '@/types';
+import { useAuth } from '@/hooks/useAuthContext';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
+import EmptyState from '@/components/EmptyState';
 
-// Type for tab values
-type TabValue = 'reservations' | 'upcoming' | 'past' | 'tickets';
+// Mock reservations & tickets data - in real app would come from an API
+const mockReservations: Reservation[] = [
+  {
+    id: '1',
+    placeId: 'place1',
+    placeName: 'Le Petite Bistro',
+    placeImage: 'https://i.pravatar.cc/150?img=10',
+    date: new Date(Date.now() + 86400000 * 2).toISOString(), // 2 days from now
+    time: '19:30',
+    partySize: 2,
+    status: 'confirmed'
+  },
+  {
+    id: '2',
+    placeId: 'place2',
+    placeName: 'Sushi Heaven',
+    placeImage: 'https://i.pravatar.cc/150?img=35',
+    date: new Date(Date.now() + 86400000 * 5).toISOString(), // 5 days from now
+    time: '18:00',
+    partySize: 4,
+    status: 'pending'
+  },
+  {
+    id: '3',
+    placeId: 'place3',
+    placeName: 'Burger Joint',
+    placeImage: 'https://i.pravatar.cc/150?img=50',
+    date: new Date(Date.now() - 86400000 * 3).toISOString(), // 3 days ago
+    time: '12:30',
+    partySize: 2,
+    status: 'completed'
+  },
+  {
+    id: '4',
+    placeId: 'place4',
+    placeName: 'Pizza Palace',
+    placeImage: 'https://i.pravatar.cc/150?img=15',
+    date: new Date(Date.now() - 86400000 * 10).toISOString(), // 10 days ago
+    time: '19:00',
+    partySize: 6,
+    status: 'cancelled'
+  }
+];
+
+const mockTickets: Ticket[] = [
+  {
+    id: '1',
+    eventId: 'event1',
+    eventName: 'Jazz Night',
+    eventImage: 'https://i.pravatar.cc/150?img=20',
+    eventDate: new Date(Date.now() + 86400000 * 7).toISOString(), // 7 days from now
+    purchaseDate: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+    price: 25,
+    status: 'active',
+    ticketType: 'General Admission'
+  },
+  {
+    id: '2',
+    eventId: 'event2',
+    eventName: 'Wine Tasting',
+    eventImage: 'https://i.pravatar.cc/150?img=30',
+    eventDate: new Date(Date.now() + 86400000 * 3).toISOString(), // 3 days from now
+    purchaseDate: new Date(Date.now() - 86400000 * 5).toISOString(), // 5 days ago
+    price: 40,
+    status: 'active',
+    ticketType: 'Premium'
+  },
+  {
+    id: '3',
+    eventId: 'event3',
+    eventName: 'Dance Performance',
+    eventImage: 'https://i.pravatar.cc/150?img=40',
+    eventDate: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
+    purchaseDate: new Date(Date.now() - 86400000 * 15).toISOString(), // 15 days ago
+    price: 30,
+    status: 'expired',
+    ticketType: 'General Admission'
+  }
+];
 
 const Bookings = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { location } = useLocation();
-  const { allPlaces } = usePlaces(location);
-  const isMobile = useIsMobile();
-  
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [upcomingBookings, setUpcomingBookings] = useState<Reservation[]>([]);
-  const [pastBookings, setPastBookings] = useState<Reservation[]>([]);
-  const [tickets, setTickets] = useState<TicketType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabValue>('reservations');
-  const [showReservationModal, setShowReservationModal] = useState(false);
-  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const { user, isLoading: authLoading } = useAuth();
+  const [activeTab, setActiveTab] = useState('reservations');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reservations, setReservations] = useState<Reservation[]>(mockReservations);
+  const [tickets, setTickets] = useState<Ticket[]>(mockTickets);
 
-  useEffect(() => {
-    fetchReservationsAndTickets();
+  // Redirect to login if not authenticated
+  React.useEffect(() => {
+    if (!user && !authLoading) {
+      navigate('/auth');
+    }
+  }, [user, navigate, authLoading]);
+
+  // Simulate loading state
+  React.useEffect(() => {
+    setLoading(true);
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 1000);
+    return () => clearTimeout(timer);
   }, []);
 
-  const fetchReservationsAndTickets = async () => {
-    setLoading(true);
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      
-      if (!userData?.user) {
-        loadMockData();
-        return;
-      }
-      
-      // Fetch reservations
-      const { data: reservationsData, error: reservationsError } = await supabase
-        .from('reservations')
-        .select('*')
-        .eq('user_id', userData.user.id)
-        .order('reservation_date', { ascending: true });
-        
-      if (reservationsError) throw reservationsError;
-      
-      // Fetch tickets if the table exists
-      let ticketsData: any[] = [];
-      try {
-        const { data, error } = await supabase
-          .from('tickets')
-          .select('*')
-          .eq('user_id', userData.user.id)
-          .order('event_date', { ascending: true });
-        
-        if (!error) {
-          ticketsData = data || [];
-        }
-      } catch (ticketsError) {
-        console.log('Tickets table may not exist yet:', ticketsError);
-      }
-      
-      processReservations(reservationsData || []);
-      processTickets(ticketsData);
-    } catch (error) {
-      console.error('Error fetching reservations:', error);
-      toast({
-        title: "Error fetching data",
-        description: "Please try again later",
-        variant: "destructive"
-      });
-      loadMockData(); // Fall back to mock data
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Filter reservations by status
+  const upcomingReservations = reservations.filter(
+    res => res.status === 'confirmed' || res.status === 'pending'
+  );
   
-  const loadMockData = () => {
-    // For demo, load mock data if user is not authenticated
-    const mockReservations = [
-      {
-        id: '1',
-        user_id: 'mock-user',
-        place_id: '1',
-        reservation_date: new Date('2025-04-15T13:00:00').toISOString(),
-        party_size: 2,
-        status: 'confirmed',
-        notes: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: '2',
-        user_id: 'mock-user',
-        place_id: '3',
-        reservation_date: new Date('2025-04-20T20:30:00').toISOString(),
-        party_size: 4,
-        status: 'confirmed',
-        notes: 'Window seat if possible',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: '3',
-        user_id: 'mock-user',
-        place_id: '5',
-        reservation_date: new Date('2025-03-10T11:00:00').toISOString(),
-        party_size: 2,
-        status: 'completed',
-        notes: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: '4',
-        user_id: 'mock-user',
-        place_id: '2',
-        reservation_date: new Date('2025-03-01T15:00:00').toISOString(),
-        party_size: 3,
-        status: 'cancelled',
-        notes: 'Had to cancel due to illness',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-    ];
-    
-    const mockTickets = [
-      {
-        id: '1',
-        user_id: 'mock-user',
-        place_id: '4',
-        event_date: new Date('2025-04-25T19:00:00').toISOString(),
-        purchase_date: new Date().toISOString(),
-        ticket_type: 'standard',
-        price: 25,
-        status: 'valid',
-        qr_code: 'MOCK-QR-1234',
-        created_at: new Date().toISOString()
-      },
-      {
-        id: '2',
-        user_id: 'mock-user',
-        place_id: '6',
-        event_date: new Date('2025-03-15T20:00:00').toISOString(),
-        purchase_date: new Date().toISOString(),
-        ticket_type: 'vip',
-        price: 75,
-        status: 'used',
-        qr_code: 'MOCK-QR-5678',
-        created_at: new Date().toISOString()
-      }
-    ];
-    
-    processReservations(mockReservations);
-    processTickets(mockTickets);
-  };
-  
-  const processReservations = (data: any[]) => {
-    if (!data) return;
-    
-    const now = new Date();
-    const upcoming: Reservation[] = [];
-    const past: Reservation[] = [];
-    
-    // Enrich reservations with place data
-    const enrichedReservations = data.map(reservation => {
-      const place = allPlaces.find(p => p.id === reservation.place_id);
-      return {
-        ...reservation,
-        place
-      } as Reservation;
-    });
-    
-    // Split into upcoming and past
-    enrichedReservations.forEach(reservation => {
-      const reservationDate = new Date(reservation.reservation_date);
-      
-      if (isPast(reservationDate) || reservation.status === 'cancelled' || reservation.status === 'completed') {
-        past.push(reservation);
-      } else {
-        upcoming.push(reservation);
-      }
-    });
-    
-    setReservations(enrichedReservations);
-    setUpcomingBookings(upcoming);
-    setPastBookings(past.sort((a, b) => 
-      new Date(b.reservation_date).getTime() - new Date(a.reservation_date).getTime()
-    ));
-  };
-  
-  const processTickets = (data: any[]) => {
-    if (!data) return;
-    
-    const enrichedTickets = data.map(ticket => {
-      const place = allPlaces.find(p => p.id === ticket.place_id);
-      return {
-        ...ticket,
-        place
-      } as TicketType;
-    });
-    
-    setTickets(enrichedTickets);
-  };
-  
-  const handleBookingAction = (action: string, booking: Reservation) => {
-    if (action === 'reschedule') {
-      toast({
-        title: "Reschedule Reservation",
-        description: "This feature will be implemented soon"
-      });
-    } else if (action === 'cancel') {
-      cancelReservation(booking.id);
-    }
-  };
-  
-  const cancelReservation = async (reservationId: string) => {
-    try {
-      const { error } = await supabase
-        .from('reservations')
-        .update({ status: 'cancelled' })
-        .eq('id', reservationId);
-        
-      if (error) throw error;
-      
-      toast({
-        title: "Reservation Cancelled",
-        description: "Your reservation has been cancelled successfully"
-      });
-      
-      fetchReservationsAndTickets();
-    } catch (error) {
-      console.error('Error cancelling reservation:', error);
-      toast({
-        title: "Error cancelling reservation",
-        description: "Please try again later",
-        variant: "destructive"
-      });
-    }
-  };
-  
-  const handleCreateReservation = (place: Place | null = null) => {
-    if (place) {
-      setSelectedPlace(place);
-    }
-    setShowReservationModal(true);
-  };
-  
-  const handleReservationCreated = () => {
-    fetchReservationsAndTickets();
-    setShowReservationModal(false);
-  };
+  const pastReservations = reservations.filter(
+    res => res.status === 'completed' || res.status === 'cancelled'
+  );
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return format(date, 'EEE, MMM d');
-  };
+  // Filter tickets by status/date
+  const activeTickets = tickets.filter(ticket => {
+    if (ticket.status === 'expired' || ticket.status === 'used') return false;
+    return isAfter(new Date(ticket.eventDate), new Date());
+  });
   
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return format(date, 'h:mm a');
-  };
+  const pastTickets = tickets.filter(ticket => {
+    if (ticket.status === 'expired' || ticket.status === 'used') return true;
+    return !isAfter(new Date(ticket.eventDate), new Date());
+  });
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'bg-green-100 text-green-800';
-      case 'completed':
-        return 'bg-blue-100 text-blue-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const ReservationCard = ({ booking }: { booking: Reservation }) => {
-    const navigate = useNavigate();
-    
-    const goToPlaceDetails = () => {
-      navigate(`/place/${booking.place_id}`);
-    };
-    
-    return (
-      <div className="border rounded-lg overflow-hidden mb-4 bg-white">
-        <div className="flex">
-          <div className="w-1/3 h-28">
-            <img 
-              src={booking.place?.imageUrl || 'https://via.placeholder.com/150?text=Place'} 
-              alt={booking.place?.name || 'Place'} 
-              className="w-full h-full object-cover"
-              onClick={goToPlaceDetails}
-            />
-          </div>
-          <div className="w-2/3 p-3">
-            <h3 className="font-medium truncate" onClick={goToPlaceDetails}>
-              {booking.place?.name || 'Unknown Place'}
-            </h3>
-            
-            <div className="flex items-center text-sm text-muted-foreground mt-1">
-              <Calendar className="w-3 h-3 mr-1" />
-              <span>{formatDate(booking.reservation_date)}</span>
-              <span className="mx-1">•</span>
-              <Clock className="w-3 h-3 mr-1" />
-              <span>{formatTime(booking.reservation_date)}</span>
-            </div>
-            
-            <div className="flex items-center text-sm text-muted-foreground mt-1">
-              <User className="w-3 h-3 mr-1" />
-              <span>{booking.party_size} {booking.party_size === 1 ? 'person' : 'people'}</span>
-            </div>
-            
-            <div className="flex mt-2 justify-between items-center">
-              <span className={`text-xs px-2 py-1 rounded-full ${getStatusBadgeClass(booking.status)}`}>
-                {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-              </span>
-              
-              {booking.status === 'confirmed' && (
-                <div className="space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => handleBookingAction('reschedule', booking)}>
-                    Reschedule
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleBookingAction('cancel', booking)}>
-                    Cancel
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+  // Handle reservation cancellation
+  const handleCancelReservation = (id: string) => {
+    setReservations(prev => 
+      prev.map(res => 
+        res.id === id ? { ...res, status: 'cancelled' } : res
+      )
     );
   };
 
-  const TicketCard = ({ ticket }: { ticket: TicketType }) => {
+  if (authLoading || loading) {
     return (
-      <div className="border rounded-lg overflow-hidden mb-4 bg-white">
-        <div className="flex">
-          <div className="w-1/3 h-28">
-            <img 
-              src={ticket.place?.imageUrl || 'https://via.placeholder.com/150?text=Event'} 
-              alt={ticket.place?.name || 'Event'} 
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="w-2/3 p-3">
-            <div className="flex items-center">
-              <h3 className="font-medium truncate">
-                {ticket.place?.name || 'Unknown Event'}
-              </h3>
-              <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
-                ticket.ticket_type === 'vip' 
-                  ? 'bg-purple-100 text-purple-800' 
-                  : ticket.ticket_type === 'early_bird'
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : 'bg-blue-100 text-blue-800'
-              }`}>
-                {ticket.ticket_type.replace('_', ' ').toUpperCase()}
-              </span>
-            </div>
-            
-            <div className="flex items-center text-sm text-muted-foreground mt-1">
-              <Calendar className="w-3 h-3 mr-1" />
-              <span>{formatDate(ticket.event_date)}</span>
-              <span className="mx-1">•</span>
-              <Clock className="w-3 h-3 mr-1" />
-              <span>{formatTime(ticket.event_date)}</span>
-            </div>
-            
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-sm font-medium">${ticket.price.toFixed(2)}</span>
-              
-              <span className={`text-xs px-2 py-1 rounded-full ${
-                ticket.status === 'valid' 
-                  ? 'bg-green-100 text-green-800'
-                  : ticket.status === 'used'
-                  ? 'bg-blue-100 text-blue-800'
-                  : ticket.status === 'expired'
-                  ? 'bg-orange-100 text-orange-800'
-                  : 'bg-red-100 text-red-800'
-              }`}>
-                {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
-              </span>
-            </div>
-            
-            {ticket.status === 'valid' && (
-              <div className="mt-2 flex">
-                <Button variant="outline" size="sm" className="w-full">
-                  <Ticket className="w-3 h-3 mr-2" />
-                  View Ticket
-                </Button>
-              </div>
-            )}
-          </div>
+      <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
+        <Skeleton className="h-10 w-32 mb-6" />
+        <div className="space-y-4">
+          {Array(3).fill(null).map((_, i) => (
+            <Skeleton key={i} className="h-36 w-full rounded-lg" />
+          ))}
         </div>
       </div>
     );
-  };
+  }
+
+  if (error) {
+    return (
+      <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
+        <Alert variant="destructive">
+          <AlertDescription>
+            {error}
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
-    <div className={`${isMobile ? 'pt-4' : 'pt-[62px]'} pb-20 px-4`}>
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Your Bookings</h1>
-        
-        <Button onClick={() => handleCreateReservation()} size="sm" className="rounded-full">
-          <Plus className="w-4 h-4 mr-1" /> New Reservation
-        </Button>
-      </div>
+    <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Your Bookings</h1>
       
-      <Tabs 
-        value={activeTab} 
-        onValueChange={(value) => setActiveTab(value as TabValue)}
-      >
-        <TabsList className="grid w-full grid-cols-4 mb-4">
-          <TabsTrigger value="reservations">All</TabsTrigger>
-          <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-          <TabsTrigger value="past">Past</TabsTrigger>
-          <TabsTrigger value="tickets">
-            <Ticket className="w-3 h-3 mr-1" />
-            Tickets
-          </TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="w-full grid grid-cols-2 mb-6">
+          <TabsTrigger value="reservations">Reservations</TabsTrigger>
+          <TabsTrigger value="tickets">Event Tickets</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="reservations">
-          {loading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading reservations...</p>
-            </div>
-          ) : reservations.length > 0 ? (
-            reservations.map(booking => (
-              <ReservationCard
-                key={booking.id}
-                booking={booking}
+        <TabsContent value="reservations" className="space-y-6">
+          <div>
+            <h2 className="text-lg font-medium mb-3">Upcoming Reservations</h2>
+            {upcomingReservations.length > 0 ? (
+              <div className="space-y-4">
+                {upcomingReservations.map(reservation => (
+                  <Card key={reservation.id} className="overflow-hidden">
+                    <div className="flex">
+                      <div className="w-24 h-24 sm:w-36 sm:h-36 overflow-hidden">
+                        <img 
+                          src={reservation.placeImage} 
+                          alt={reservation.placeName} 
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <CardContent className="flex-1 p-4 sm:p-6">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-medium text-base sm:text-lg">{reservation.placeName}</h3>
+                            <div className="flex items-center text-muted-foreground mt-1">
+                              <Calendar className="h-3.5 w-3.5 mr-1" />
+                              <span className="text-xs sm:text-sm">
+                                {format(new Date(reservation.date), 'EEEE, MMMM d, yyyy')}
+                              </span>
+                            </div>
+                            <div className="flex items-center text-muted-foreground mt-1">
+                              <Clock className="h-3.5 w-3.5 mr-1" />
+                              <span className="text-xs sm:text-sm">{reservation.time}</span>
+                            </div>
+                            <div className="mt-2">
+                              <Badge variant={reservation.status === 'confirmed' ? 'default' : 'outline'}>
+                                {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
+                              </Badge>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="hidden sm:flex">
+                            {reservation.partySize} {reservation.partySize === 1 ? 'person' : 'people'}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </div>
+                    <CardFooter className="flex justify-between bg-muted/50 px-4 py-3">
+                      <Button
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => navigate(`/place/${reservation.placeId}`)}
+                      >
+                        View Place
+                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={() => {/* Navigate to modify reservation */}}
+                        >
+                          Modify
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem 
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => handleCancelReservation(reservation.id)}
+                            >
+                              Cancel Reservation
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={<CalendarClock className="h-12 w-12 text-muted-foreground" />}
+                title="No upcoming reservations"
+                description="When you make a reservation at a restaurant or venue, it will appear here."
+                action={
+                  <Button onClick={() => navigate('/')}>Explore Places</Button>
+                }
               />
-            ))
-          ) : (
-            <div className="text-center py-8">
-              <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 font-medium">No reservations found</h3>
-              <p className="text-sm text-muted-foreground">When you make reservations, they'll appear here</p>
-              <Button
-                onClick={() => handleCreateReservation()}
-                variant="outline"
-                className="mt-4 rounded-full"
-              >
-                Make a Reservation
-              </Button>
+            )}
+          </div>
+          
+          {pastReservations.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-lg font-medium mb-3">Past Reservations</h2>
+              <div className="space-y-4">
+                {pastReservations.map(reservation => (
+                  <Card key={reservation.id} className="overflow-hidden">
+                    <div className="flex">
+                      <div className="w-24 h-24 sm:w-36 sm:h-36 overflow-hidden">
+                        <img 
+                          src={reservation.placeImage} 
+                          alt={reservation.placeName} 
+                          className="w-full h-full object-cover opacity-70"
+                        />
+                      </div>
+                      <CardContent className="flex-1 p-4 sm:p-6">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-medium text-base sm:text-lg">{reservation.placeName}</h3>
+                            <div className="flex items-center text-muted-foreground mt-1">
+                              <Calendar className="h-3.5 w-3.5 mr-1" />
+                              <span className="text-xs sm:text-sm">
+                                {format(new Date(reservation.date), 'EEEE, MMMM d, yyyy')}
+                              </span>
+                            </div>
+                            <div className="flex items-center text-muted-foreground mt-1">
+                              <Clock className="h-3.5 w-3.5 mr-1" />
+                              <span className="text-xs sm:text-sm">{reservation.time}</span>
+                            </div>
+                            <div className="mt-2">
+                              <Badge 
+                                variant={reservation.status === 'completed' ? 'secondary' : 'outline'}
+                                className="opacity-70"
+                              >
+                                {reservation.status === 'completed' && <Check className="h-3 w-3 mr-1" />}
+                                {reservation.status === 'cancelled' && <XCircle className="h-3 w-3 mr-1" />}
+                                {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
+                              </Badge>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="hidden sm:flex opacity-70">
+                            {reservation.partySize} {reservation.partySize === 1 ? 'person' : 'people'}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </div>
+                    <CardFooter className="flex justify-between bg-muted/50 px-4 py-3">
+                      <Button
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => navigate(`/place/${reservation.placeId}`)}
+                      >
+                        View Place
+                      </Button>
+                      {reservation.status === 'completed' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {/* Add review logic */}}
+                        >
+                          Leave Review
+                        </Button>
+                      )}
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
             </div>
           )}
         </TabsContent>
         
-        <TabsContent value="upcoming">
-          {loading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading upcoming reservations...</p>
-            </div>
-          ) : upcomingBookings.length > 0 ? (
-            upcomingBookings.map(booking => (
-              <ReservationCard
-                key={booking.id}
-                booking={booking}
+        <TabsContent value="tickets" className="space-y-6">
+          <div>
+            <h2 className="text-lg font-medium mb-3">Upcoming Events</h2>
+            {activeTickets.length > 0 ? (
+              <div className="space-y-4">
+                {activeTickets.map(ticket => (
+                  <Card key={ticket.id} className="overflow-hidden">
+                    <div className="flex">
+                      <div className="w-24 h-24 sm:w-36 sm:h-36 overflow-hidden">
+                        <img 
+                          src={ticket.eventImage} 
+                          alt={ticket.eventName} 
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <CardContent className="flex-1 p-4 sm:p-6">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-medium text-base sm:text-lg">{ticket.eventName}</h3>
+                            <div className="flex items-center text-muted-foreground mt-1">
+                              <Calendar className="h-3.5 w-3.5 mr-1" />
+                              <span className="text-xs sm:text-sm">
+                                {format(new Date(ticket.eventDate), 'EEEE, MMMM d, yyyy')}
+                              </span>
+                            </div>
+                            <div className="flex items-center text-muted-foreground mt-1">
+                              <Award className="h-3.5 w-3.5 mr-1" />
+                              <span className="text-xs sm:text-sm">{ticket.ticketType}</span>
+                            </div>
+                            <div className="mt-2 flex items-center gap-2">
+                              <Badge variant="default">
+                                Active
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                ${ticket.price.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </div>
+                    <CardFooter className="flex justify-between bg-muted/50 px-4 py-3">
+                      <Button
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {/* View event details */}}
+                      >
+                        View Event
+                      </Button>
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        onClick={() => {/* Show ticket QR code */}}
+                      >
+                        View Ticket
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={<CalendarClock className="h-12 w-12 text-muted-foreground" />}
+                title="No upcoming event tickets"
+                description="When you purchase tickets to events, they will appear here."
+                action={
+                  <Button onClick={() => navigate('/events')}>Find Events</Button>
+                }
               />
-            ))
-          ) : (
-            <div className="text-center py-8">
-              <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 font-medium">No upcoming reservations</h3>
-              <p className="text-sm text-muted-foreground">When you make reservations, they'll appear here</p>
-              <Button
-                onClick={() => handleCreateReservation()}
-                variant="outline"
-                className="mt-4 rounded-full"
-              >
-                Make a Reservation
-              </Button>
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="past">
-          {loading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading past reservations...</p>
-            </div>
-          ) : pastBookings.length > 0 ? (
-            pastBookings.map(booking => (
-              <ReservationCard
-                key={booking.id}
-                booking={booking}
-              />
-            ))
-          ) : (
-            <div className="text-center py-8">
-              <Clock className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 font-medium">No past reservations</h3>
-              <p className="text-sm text-muted-foreground">Your booking history will appear here</p>
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="tickets">
-          {loading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading tickets...</p>
-            </div>
-          ) : tickets.length > 0 ? (
-            tickets.map(ticket => (
-              <TicketCard
-                key={ticket.id}
-                ticket={ticket}
-              />
-            ))
-          ) : (
-            <div className="text-center py-8">
-              <Ticket className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 font-medium">No tickets found</h3>
-              <p className="text-sm text-muted-foreground">When you purchase tickets, they'll appear here</p>
-              <Button
-                onClick={() => navigate('/')}
-                variant="outline"
-                className="mt-4 rounded-full"
-              >
-                Explore Events
-              </Button>
+            )}
+          </div>
+          
+          {pastTickets.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-lg font-medium mb-3">Past Events</h2>
+              <div className="space-y-4">
+                {pastTickets.map(ticket => (
+                  <Card key={ticket.id} className="overflow-hidden">
+                    <div className="flex">
+                      <div className="w-24 h-24 sm:w-36 sm:h-36 overflow-hidden">
+                        <img 
+                          src={ticket.eventImage} 
+                          alt={ticket.eventName} 
+                          className="w-full h-full object-cover opacity-70"
+                        />
+                      </div>
+                      <CardContent className="flex-1 p-4 sm:p-6">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-medium text-base sm:text-lg">{ticket.eventName}</h3>
+                            <div className="flex items-center text-muted-foreground mt-1">
+                              <Calendar className="h-3.5 w-3.5 mr-1" />
+                              <span className="text-xs sm:text-sm">
+                                {format(new Date(ticket.eventDate), 'EEEE, MMMM d, yyyy')}
+                              </span>
+                            </div>
+                            <div className="flex items-center text-muted-foreground mt-1">
+                              <Award className="h-3.5 w-3.5 mr-1" />
+                              <span className="text-xs sm:text-sm">{ticket.ticketType}</span>
+                            </div>
+                            <div className="mt-2">
+                              <Badge 
+                                variant="outline"
+                                className="opacity-70"
+                              >
+                                Expired
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </div>
+                    <CardFooter className="flex justify-between bg-muted/50 px-4 py-3">
+                      <Button
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {/* View event details */}}
+                      >
+                        View Event
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
             </div>
           )}
         </TabsContent>
       </Tabs>
-      
-      {showReservationModal && (
-        <ReservationModal
-          place={selectedPlace}
-          isOpen={showReservationModal}
-          onClose={() => setShowReservationModal(false)}
-          onReservationCreated={handleReservationCreated}
-        />
-      )}
     </div>
   );
 };

@@ -23,7 +23,7 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditing, setIsEditing] = useState(false);
   const { isSupported: notificationsSupported } = useNotifications();
-  const { data: places } = usePlaces();
+  const { places } = usePlaces();
   const { profile, isLoading, error, updateProfile } = useUserProfile();
 
   // Redirect to auth page if not logged in

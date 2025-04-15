@@ -104,18 +104,20 @@ export interface Reservation {
   placeName: string;
   placeImage: string;
   reservation_date?: string; // Added for compatibility
+  place?: Place;
 }
 
 export interface Ticket {
   id: string;
   eventId: string;
-  purchaseDate: string;
-  price: number;
-  status: 'active' | 'used' | 'expired' | 'valid';
   eventName: string;
   eventImage: string;
   eventDate: string;
+  purchaseDate: string;
+  price: number;
+  status: 'active' | 'used' | 'expired' | 'valid';
   ticketType?: string;
+  place?: Place;
 }
 
 export interface ReservationData {
@@ -134,6 +136,18 @@ export interface EventParticipant {
   user_id: string;
   event_id: string;
   status: 'going' | 'maybe' | 'not_going' | 'invited' | 'accepted' | 'declined';
+  user?: {
+    full_name: string;
+    avatar_url?: string;
+  };
+}
+
+export interface ParticipantData {
+  id: string;
+  user_id: string;
+  event_id: string;
+  status: 'going' | 'maybe' | 'not_going' | 'invited' | 'accepted' | 'declined';
+  created_at: string;
   user?: {
     full_name: string;
     avatar_url?: string;
