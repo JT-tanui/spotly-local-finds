@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from "@/hooks/useAuthContext";
 import { useNotifications } from "@/hooks/useNotifications";
 import { usePlaces } from '@/hooks/usePlaces';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import ProfileHeader from "@/components/ProfileHeader";
 import ProfileOverview from "@/components/ProfileOverview";
 import ProfileStats from "@/components/ProfileStats";
@@ -12,94 +13,32 @@ import ProfileEditForm from "@/components/ProfileEditForm";
 import NotificationPreferences from "@/components/NotificationPreferences";
 import SettingsTab from "@/components/SettingsTab";
 import HelpTab from "@/components/HelpTab";
-import { useToast } from '@/components/ui/use-toast';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from 'lucide-react';
-import { UserProfile } from '@/types';
-import { supabase } from '@/integrations/supabase/client';
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditing, setIsEditing] = useState(false);
   const { isSupported: notificationsSupported } = useNotifications();
   const { data: places } = usePlaces();
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { profile, isLoading, error, updateProfile } = useUserProfile();
 
-  useEffect(() => {
-    if (!user) {
+  // Redirect to auth page if not logged in
+  React.useEffect(() => {
+    if (!user && !isLoading) {
       navigate('/auth');
-      return;
     }
+  }, [user, navigate, isLoading]);
 
-    const fetchUserProfile = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-
-        if (error) throw error;
-
-        if (data) {
-          setUserProfile({
-            ...data,
-            stats: {
-              bookings_count: data.bookings_count || 0,
-              saved_count: data.saved_count || 0,
-              free_reservations: data.free_reservations || 0,
-              loyalty_points: data.loyalty_points || 0,
-            }
-          });
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load profile');
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to load profile data. Please try again later.",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserProfile();
-  }, [user, navigate, toast]);
-
-  const handleProfileUpdate = async (updatedProfile: Partial<UserProfile>) => {
-    if (!user) return;
-    
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update(updatedProfile)
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      setUserProfile(prev => prev ? { ...prev, ...updatedProfile } : null);
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been successfully updated.",
-      });
-      setIsEditing(false);
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to update profile. Please try again.",
-      });
-    }
+  const handleProfileUpdate = async (updatedProfile: Partial<typeof profile>) => {
+    updateProfile(updatedProfile);
+    setIsEditing(false);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="container px-4 py-6 max-w-4xl mx-auto space-y-6">
         <Skeleton className="h-32 w-full rounded-xl" />
@@ -116,13 +55,15 @@ const Profile = () => {
       <div className="container px-4 py-6 max-w-4xl mx-auto">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            {error instanceof Error ? error.message : 'Failed to load profile'}
+          </AlertDescription>
         </Alert>
       </div>
     );
   }
 
-  if (!userProfile) {
+  if (!profile) {
     return null;
   }
 
@@ -136,7 +77,7 @@ const Profile = () => {
   return (
     <div className="container px-4 py-6 pt-16 md:pt-6 pb-20 md:pb-6 max-w-4xl mx-auto">
       <ProfileHeader
-        user={userProfile}
+        user={profile}
         isEditing={isEditing}
         onEditClick={() => setIsEditing(true)}
         isLoading={false}
@@ -145,7 +86,7 @@ const Profile = () => {
       {isEditing ? (
         <div className="mt-6">
           <ProfileEditForm
-            profile={userProfile}
+            profile={profile}
             onSubmit={handleProfileUpdate}
             onCancel={() => setIsEditing(false)}
           />
@@ -175,10 +116,10 @@ const Profile = () => {
               
               <div className="col-span-1">
                 <ProfileStats 
-                  bookingsCount={userProfile.stats?.bookings_count || 0}
-                  savedCount={userProfile.stats?.saved_count || 0}
-                  freeReservations={userProfile.stats?.free_reservations || 0}
-                  loyaltyPoints={userProfile.stats?.loyalty_points || 0}
+                  bookingsCount={profile.stats?.bookings_count || 0}
+                  savedCount={profile.stats?.saved_count || 0}
+                  freeReservations={profile.stats?.free_reservations || 0}
+                  loyaltyPoints={profile.stats?.loyalty_points || 0}
                 />
               </div>
             </div>
@@ -199,7 +140,7 @@ const Profile = () => {
           
           <TabsContent value="settings" className="mt-6">
             <SettingsTab 
-              user={userProfile} 
+              user={profile} 
               onUpdateProfile={handleProfileUpdate}
             />
           </TabsContent>

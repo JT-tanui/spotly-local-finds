@@ -22,14 +22,15 @@ export const mapDbEventToEvent = (dbEvent: any, places?: Place[]): Event => {
     id: dbEvent.id,
     creator_id: dbEvent.creator_id,
     place_id: dbEvent.place_id,
-    place,
     title: dbEvent.title,
     description: dbEvent.description || null,
     event_date: dbEvent.event_date,
     created_at: dbEvent.created_at,
     max_participants: dbEvent.max_participants || null,
     status: dbEvent.status as 'active' | 'cancelled' | 'completed',
-    participants: dbEvent.participants || []
+    participants: dbEvent.participants || [],
+    creator: dbEvent.creator,
+    place: place
   };
 };
 

@@ -1,3 +1,4 @@
+
 export interface Place {
   id: string;
   name: string;
@@ -54,17 +55,18 @@ export interface UserProfile {
 export interface Event {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
   event_date: string;
   place_id: string;
   creator_id: string;
   status: string;
-  max_participants: number;
+  max_participants: number | null;
   created_at: string;
   creator?: {
     full_name: string;
     avatar_url?: string;
   };
+  place?: Place;
   participants?: EventParticipant[];
   participants_count?: number;
 }
@@ -108,10 +110,11 @@ export interface Ticket {
   eventId: string;
   purchaseDate: string;
   price: number;
-  status: 'active' | 'used' | 'expired';
+  status: 'active' | 'used' | 'expired' | 'valid';
   eventName: string;
   eventImage: string;
   eventDate: string;
+  ticketType?: string;
 }
 
 export interface ReservationData {
