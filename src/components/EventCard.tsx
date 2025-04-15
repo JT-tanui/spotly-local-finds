@@ -173,7 +173,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, places, isOwner = false, o
             <div className="flex items-center text-sm text-muted-foreground mt-1">
               <Users className="w-3 h-3 mr-1" />
               <span>
-                {event.participants?.length || 0} attendee{(event.participants?.length || 0) !== 1 ? 's' : ''}
+                {event.participants_count || 0} attendee{(event.participants_count || 0) !== 1 ? 's' : ''}
                 {event.max_participants ? ` (max ${event.max_participants})` : ''}
               </span>
             </div>

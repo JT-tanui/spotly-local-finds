@@ -19,6 +19,18 @@ interface EventDetailsModalProps {
   onUpdateEvent: () => void;
 }
 
+interface ParticipantData {
+  id: string;
+  event_id: string;
+  user_id: string;
+  status: 'invited' | 'accepted' | 'declined' | 'maybe' | 'going' | 'not_going';
+  created_at: string;
+  user?: {
+    full_name?: string;
+    avatar_url?: string;
+  };
+}
+
 const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   isOpen,
   onClose,
@@ -29,7 +41,7 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 }) => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [participants, setParticipants] = useState<EventParticipant[]>([]);
+  const [participants, setParticipants] = useState<ParticipantData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [currentUserStatus, setCurrentUserStatus] = useState<string | null>(null);
@@ -45,21 +57,15 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     try {
       const { data, error } = await supabase
         .from('event_participants')
-        .select('*')
+        .select(`
+          *,
+          user:profiles(full_name, avatar_url)
+        `)
         .eq('event_id', event.id);
         
       if (error) throw error;
       
-      // Convert raw data to EventParticipant type
-      const typedParticipants: EventParticipant[] = data?.map(p => ({
-        id: p.id,
-        event_id: p.event_id,
-        user_id: p.user_id,
-        status: p.status as 'invited' | 'accepted' | 'declined' | 'maybe',
-        created_at: p.created_at,
-      })) || [];
-      
-      setParticipants(typedParticipants);
+      setParticipants(data || []);
     } catch (error) {
       console.error('Error fetching participants:', error);
     } finally {
@@ -149,6 +155,8 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       case 'declined': return 'Not Going';
       case 'maybe': return 'Maybe';
       case 'invited': return 'Invited';
+      case 'going': return 'Going';
+      case 'not_going': return 'Not Going';
       default: return status;
     }
   };
@@ -156,8 +164,10 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case 'accepted':
+      case 'going':
         return 'bg-green-100 text-green-800';
       case 'declined':
+      case 'not_going':
         return 'bg-red-100 text-red-800';
       case 'maybe':
         return 'bg-yellow-100 text-yellow-800';
@@ -215,7 +225,7 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             <div>
               <h3 className="text-sm font-semibold flex items-center mb-2">
                 <Users className="w-4 h-4 mr-2" />
-                Attendees ({participants.filter(p => p.status === 'accepted').length})
+                Attendees ({participants.filter(p => p.status === 'accepted' || p.status === 'going').length})
               </h3>
               
               {loading ? (
@@ -231,7 +241,7 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                           <div className="flex items-center">
                             <User className="w-4 h-4 mr-2 text-gray-500" />
                             <span>
-                              {participant.user?.name || participant.user_id.substring(0, 8)}
+                              {participant.user?.full_name || participant.user_id.substring(0, 8)}
                             </span>
                           </div>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusBadgeClass(participant.status)}`}>
@@ -267,7 +277,7 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 </div>
                 <div className="flex space-x-2">
                   <Button 
-                    variant={currentUserStatus === 'accepted' ? 'default' : 'outline'}
+                    variant={currentUserStatus === 'accepted' || currentUserStatus === 'going' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => updateAttendanceStatus('accepted')}
                   >
@@ -281,7 +291,7 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                     Maybe
                   </Button>
                   <Button
-                    variant={currentUserStatus === 'declined' ? 'default' : 'outline'}
+                    variant={currentUserStatus === 'declined' || currentUserStatus === 'not_going' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => updateAttendanceStatus('declined')}
                   >

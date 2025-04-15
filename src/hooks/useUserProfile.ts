@@ -32,14 +32,28 @@ export function useUserProfile() {
         throw error;
       }
       
+      // Fetch loyalty points from separate table
+      const { data: loyaltyData } = await supabase
+        .from('loyalty_points')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+        
+      // Get reservation count
+      const { count: bookingsCount } = await supabase
+        .from('reservations')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+        
+      // For this example, we'll mock some stats since we don't have the actual tables
       // Format the profile data to match our UserProfile type
       const formattedProfile: UserProfile = {
         ...data,
         stats: {
-          bookings_count: data.bookings_count || 0,
-          saved_count: data.saved_count || 0,
-          free_reservations: data.free_reservations || 0,
-          loyalty_points: data.loyalty_points || 0,
+          bookings_count: bookingsCount || 0,
+          saved_count: 0, // Mock data, would get from a saved_places table
+          free_reservations: loyaltyData?.points ? Math.floor(loyaltyData.points / 500) : 0,
+          loyalty_points: loyaltyData?.points || 0,
         }
       };
       
@@ -53,12 +67,27 @@ export function useUserProfile() {
     mutationFn: async (updatedProfile: Partial<UserProfile>) => {
       if (!user?.id) throw new Error('User not authenticated');
       
+      // Extract stats from the update if present
+      const { stats, ...profileData } = updatedProfile;
+      
+      // Update profile data
       const { error } = await supabase
         .from('profiles')
-        .update(updatedProfile)
+        .update(profileData)
         .eq('id', user.id);
       
       if (error) throw error;
+      
+      // Update loyalty points if included in the update
+      if (stats && stats.loyalty_points !== undefined) {
+        const { error: loyaltyError } = await supabase
+          .from('loyalty_points')
+          .update({ points: stats.loyalty_points })
+          .eq('user_id', user.id);
+          
+        if (loyaltyError) throw loyaltyError;
+      }
+      
       return updatedProfile;
     },
     onSuccess: (data) => {

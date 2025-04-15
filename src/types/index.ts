@@ -103,6 +103,7 @@ export interface Reservation {
   status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
   placeName: string;
   placeImage: string;
+  reservation_date?: string; // Added for compatibility
 }
 
 export interface Ticket {
@@ -133,7 +134,7 @@ export interface EventParticipant {
   user_id: string;
   event_id: string;
   status: 'going' | 'maybe' | 'not_going' | 'invited' | 'accepted' | 'declined';
-  user: {
+  user?: {
     full_name: string;
     avatar_url?: string;
   };

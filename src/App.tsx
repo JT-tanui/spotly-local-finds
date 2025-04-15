@@ -91,9 +91,9 @@ const App = () => (
     <BrowserRouter>
       <AuthContextProvider>
         <TooltipProvider delayDuration={300}>
+          <AppRoutes />
           <Toaster />
           <Sonner position="top-center" />
-          <AppRoutes />
         </TooltipProvider>
       </AuthContextProvider>
     </BrowserRouter>

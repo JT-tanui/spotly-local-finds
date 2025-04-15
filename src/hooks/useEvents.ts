@@ -31,12 +31,16 @@ export function useEvents() {
       
       if (error) throw error;
       
+      // Type casting and processing the data to match the Event structure
       return data?.map(event => ({
         ...event,
-        creator: event.creator,
-        participants: event.participants,
+        creator: {
+          full_name: event.creator?.full_name || '',
+          avatar_url: event.creator?.avatar_url
+        },
+        participants: event.participants || [],
         participants_count: event.participants?.length || 0
-      })) as Event[];
+      })) as unknown as Event[];
     }
   });
 
@@ -61,7 +65,15 @@ export function useEvents() {
       
       if (error) throw error;
       
-      return data as Event[];
+      // Type casting and processing the data
+      return data?.map(event => ({
+        ...event,
+        creator: {
+          full_name: event.creator?.full_name || '',
+          avatar_url: event.creator?.avatar_url
+        },
+        participants: []  // Default empty array
+      })) as unknown as Event[];
     }
   });
 
@@ -88,14 +100,23 @@ export function useEvents() {
       
       if (error) throw error;
       
-      const events = data
-        ?.map(item => item.event as Event)
-        .filter(Boolean)
-        .sort((a, b) => 
-          new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
-        );
+      const events = data?.map(item => {
+        const eventData = item.event as any;
+        return {
+          ...eventData,
+          creator: {
+            full_name: eventData?.creator?.full_name || '',
+            avatar_url: eventData?.creator?.avatar_url
+          },
+          participants: eventData?.participants || []
+        };
+      })
+      .filter(Boolean)
+      .sort((a: Event, b: Event) => 
+        new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
+      );
       
-      return events || [];
+      return events as Event[] || [];
     },
     enabled: !!user?.id
   });
@@ -127,7 +148,13 @@ export function useEvents() {
           status: 'going'
         });
       
-      return data as Event;
+      return {
+        ...data,
+        creator: {
+          full_name: data.creator?.full_name || '',
+          avatar_url: data.creator?.avatar_url
+        }
+      } as unknown as Event;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
