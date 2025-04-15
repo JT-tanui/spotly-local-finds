@@ -13,6 +13,7 @@ import ProfileEditForm from "@/components/ProfileEditForm";
 import NotificationPreferences from "@/components/NotificationPreferences";
 import SettingsTab from "@/components/SettingsTab";
 import HelpTab from "@/components/HelpTab";
+import PaymentsTab from "@/components/PaymentsTab";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from 'lucide-react';
@@ -98,9 +99,10 @@ const Profile = () => {
           onValueChange={setActiveTab}
           className="mt-6"
         >
-          <TabsList className="w-full grid grid-cols-2 md:grid-cols-4">
+          <TabsList className="w-full grid grid-cols-2 md:grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
             <TabsTrigger value="help">Help</TabsTrigger>
           </TabsList>
@@ -136,6 +138,10 @@ const Profile = () => {
                 </p>
               </div>
             )}
+          </TabsContent>
+          
+          <TabsContent value="payments" className="mt-6">
+            <PaymentsTab user={profile} />
           </TabsContent>
           
           <TabsContent value="settings" className="mt-6">

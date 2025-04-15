@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, parseISO, isAfter } from 'date-fns';
-import { CalendarClock, Calendar, Award, Check, Clock, XCircle, MoreHorizontal } from 'lucide-react';
+import { CalendarClock, Calendar, Award, Check, Clock, XCircle, MoreHorizontal, Plus } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,14 +13,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Skeleton } from '@/components/ui/skeleton';
 import EmptyState from '@/components/EmptyState';
 
-// Mock reservations & tickets data - in real app would come from an API
 const mockReservations: Reservation[] = [
   {
     id: '1',
     placeId: 'place1',
     placeName: 'Le Petite Bistro',
     placeImage: 'https://i.pravatar.cc/150?img=10',
-    date: new Date(Date.now() + 86400000 * 2).toISOString(), // 2 days from now
+    date: new Date(Date.now() + 86400000 * 2).toISOString(),
     time: '19:30',
     partySize: 2,
     status: 'confirmed'
@@ -31,7 +29,7 @@ const mockReservations: Reservation[] = [
     placeId: 'place2',
     placeName: 'Sushi Heaven',
     placeImage: 'https://i.pravatar.cc/150?img=35',
-    date: new Date(Date.now() + 86400000 * 5).toISOString(), // 5 days from now
+    date: new Date(Date.now() + 86400000 * 5).toISOString(),
     time: '18:00',
     partySize: 4,
     status: 'pending'
@@ -41,7 +39,7 @@ const mockReservations: Reservation[] = [
     placeId: 'place3',
     placeName: 'Burger Joint',
     placeImage: 'https://i.pravatar.cc/150?img=50',
-    date: new Date(Date.now() - 86400000 * 3).toISOString(), // 3 days ago
+    date: new Date(Date.now() - 86400000 * 3).toISOString(),
     time: '12:30',
     partySize: 2,
     status: 'completed'
@@ -51,7 +49,7 @@ const mockReservations: Reservation[] = [
     placeId: 'place4',
     placeName: 'Pizza Palace',
     placeImage: 'https://i.pravatar.cc/150?img=15',
-    date: new Date(Date.now() - 86400000 * 10).toISOString(), // 10 days ago
+    date: new Date(Date.now() - 86400000 * 10).toISOString(),
     time: '19:00',
     partySize: 6,
     status: 'cancelled'
@@ -64,8 +62,8 @@ const mockTickets: Ticket[] = [
     eventId: 'event1',
     eventName: 'Jazz Night',
     eventImage: 'https://i.pravatar.cc/150?img=20',
-    eventDate: new Date(Date.now() + 86400000 * 7).toISOString(), // 7 days from now
-    purchaseDate: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+    eventDate: new Date(Date.now() + 86400000 * 7).toISOString(),
+    purchaseDate: new Date(Date.now() - 86400000).toISOString(),
     price: 25,
     status: 'active',
     ticketType: 'General Admission'
@@ -75,8 +73,8 @@ const mockTickets: Ticket[] = [
     eventId: 'event2',
     eventName: 'Wine Tasting',
     eventImage: 'https://i.pravatar.cc/150?img=30',
-    eventDate: new Date(Date.now() + 86400000 * 3).toISOString(), // 3 days from now
-    purchaseDate: new Date(Date.now() - 86400000 * 5).toISOString(), // 5 days ago
+    eventDate: new Date(Date.now() + 86400000 * 3).toISOString(),
+    purchaseDate: new Date(Date.now() - 86400000 * 5).toISOString(),
     price: 40,
     status: 'active',
     ticketType: 'Premium'
@@ -86,8 +84,8 @@ const mockTickets: Ticket[] = [
     eventId: 'event3',
     eventName: 'Dance Performance',
     eventImage: 'https://i.pravatar.cc/150?img=40',
-    eventDate: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
-    purchaseDate: new Date(Date.now() - 86400000 * 15).toISOString(), // 15 days ago
+    eventDate: new Date(Date.now() - 86400000 * 2).toISOString(),
+    purchaseDate: new Date(Date.now() - 86400000 * 15).toISOString(),
     price: 30,
     status: 'expired',
     ticketType: 'General Admission'
@@ -102,15 +100,14 @@ const Bookings = () => {
   const [error, setError] = useState<string | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>(mockReservations);
   const [tickets, setTickets] = useState<Ticket[]>(mockTickets);
+  const [reservationModalOpen, setReservationModalOpen] = useState(false);
 
-  // Redirect to login if not authenticated
   React.useEffect(() => {
     if (!user && !authLoading) {
       navigate('/auth');
     }
   }, [user, navigate, authLoading]);
 
-  // Simulate loading state
   React.useEffect(() => {
     setLoading(true);
     const timer = setTimeout(() => {
@@ -119,7 +116,6 @@ const Bookings = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Filter reservations by status
   const upcomingReservations = reservations.filter(
     res => res.status === 'confirmed' || res.status === 'pending'
   );
@@ -128,7 +124,6 @@ const Bookings = () => {
     res => res.status === 'completed' || res.status === 'cancelled'
   );
 
-  // Filter tickets by status/date
   const activeTickets = tickets.filter(ticket => {
     if (ticket.status === 'expired' || ticket.status === 'used') return false;
     return isAfter(new Date(ticket.eventDate), new Date());
@@ -139,13 +134,23 @@ const Bookings = () => {
     return !isAfter(new Date(ticket.eventDate), new Date());
   });
 
-  // Handle reservation cancellation
   const handleCancelReservation = (id: string) => {
     setReservations(prev => 
       prev.map(res => 
         res.id === id ? { ...res, status: 'cancelled' } : res
       )
     );
+  };
+
+  const renderActionItems = () => {
+    return [
+      {
+        icon: <Plus className="h-5 w-5" />,
+        label: "Make a Reservation",
+        onClick: () => setReservationModalOpen(true)
+      },
+      // ... other action items
+    ];
   };
 
   if (authLoading || loading) {
@@ -174,7 +179,7 @@ const Bookings = () => {
   }
 
   return (
-    <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
+    <div className="container px-4 pb-20 md:pb-10 pt-16 md:pt-6">
       <h1 className="text-2xl font-bold mb-6">Your Bookings</h1>
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -470,6 +475,20 @@ const Bookings = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        {renderActionItems().map((item, index) => (
+          <Button
+            key={index}
+            variant="outline"
+            className="h-20 flex-col justify-center border-dashed"
+            onClick={item.onClick}
+          >
+            {React.isValidElement(item.icon) ? item.icon : null}
+            <span className="mt-2 text-xs">{item.label}</span>
+          </Button>
+        ))}
+      </div>
     </div>
   );
 };

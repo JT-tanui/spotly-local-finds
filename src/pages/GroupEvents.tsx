@@ -1,316 +1,234 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
-import { MapPin, Calendar, Users, Plus, Filter, Settings } from 'lucide-react';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuthContext';
 import { useEvents } from '@/hooks/useEvents';
-import { Event } from '@/types';
-import EmptyState from '@/components/EmptyState';
-import EventCard from '@/components/EventCard';
+import { usePlaces } from '@/hooks/usePlaces';
+import { useAuth } from '@/hooks/useAuthContext';
+import { Event, Place, IconFilterProps } from '@/types';
 import CreateEventModal from '@/components/CreateEventModal';
-import EventDetailsModal from '@/components/EventDetailsModal';
+import EventCard from '@/components/EventCard';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CalendarPlus, Calendar, Users, CalendarCheck, MapPin, FilePlus } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useNotifications } from '@/hooks/useNotifications';
+import { IconFilter } from '@/components/IconFilter';
 
-const GroupEvents = () => {
+const GroupEvents: React.FC = () => {
   const navigate = useNavigate();
+  const { events, loading, upcomingEvents, pastEvents, fetchEvents } = useEvents();
+  const { places } = usePlaces();
   const { user } = useAuth();
-  const { useAllEvents, useToggleParticipation } = useEvents();
   const { toast } = useToast();
-  
-  // State
-  const [activeTab, setActiveTab] = useState('all');
-  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [showEventDetails, setShowEventDetails] = useState(false);
-  const [showCreateEvent, setShowCreateEvent] = useState(false);
-  const [scheduleNotification, setScheduleNotification] = useState(true);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [filters, setFilters] = useState({
-    upcoming: true,
-    participated: false,
-    created: false
-  });
+  const { requestPermission, scheduleNotification } = useNotifications();
+  const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('upcoming');
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState<string>('all');
 
-  // Fetch events data
-  const { data: fetchedEvents, isLoading, error } = useAllEvents();
-  const { mutate: toggleParticipation } = useToggleParticipation();
-
-  // Process events when data changes
   useEffect(() => {
-    if (fetchedEvents) {
-      // Process events to match our Event type
-      const processedEvents = fetchedEvents.map(event => {
-        const eventObj: Event = {
-          id: event.id,
-          title: event.title,
-          description: event.description,
-          event_date: event.event_date,
-          place_id: event.place_id,
-          creator_id: event.creator_id,
-          status: event.status,
-          max_participants: event.max_participants,
-          created_at: event.created_at,
-          creator: event.creator && {
-            full_name: event.creator.full_name || '',
-            avatar_url: event.creator.avatar_url || undefined
-          },
-          participants_count: typeof event.participants_count === 'number' ? 
-            event.participants_count : 
-            (Array.isArray(event.participants_count) && event.participants_count[0]?.count || 0)
-        };
-        return eventObj;
-      });
-      
-      setEvents(processedEvents);
-    }
-  }, [fetchedEvents]);
+    fetchEvents();
+  }, [fetchEvents]);
 
-  // Filter events based on active tab
-  const filteredEvents = events.filter(event => {
-    const now = new Date();
-    const eventDate = new Date(event.event_date);
-    const isUpcoming = eventDate >= now;
-    const isUserEvent = event.creator_id === user?.id;
-    
-    if (activeTab === 'my-events') {
-      return isUserEvent;
+  useEffect(() => {
+    if (events.length === 0 && !loading) {
+      setShowNotifications(true);
     }
-    
-    if (filters.upcoming && !isUpcoming) {
-      return false;
-    }
-    
-    if (filters.created && !isUserEvent) {
-      return false;
-    }
-    
-    // Additional filter for participated events would go here
-    // (requires participant data which may be fetched separately)
-    
-    return true;
-  });
+  }, [events, loading]);
 
-  // Handle event selection for details view
-  const handleSelectEvent = (event: Event) => {
-    setSelectedEvent(event);
-    setShowEventDetails(true);
-  };
-  
-  const handleCreateNewEvent = (newEvent: Event) => {
-    setEvents(prev => [newEvent, ...prev]);
-    
+  useEffect(() => {
+    const checkPermission = async () => {
+      const result = await requestPermission();
+      setShowNotifications(result === 'granted');
+    };
+    checkPermission();
+  }, [requestPermission]);
+
+  const handleCreateEvent = (newEvent: Event) => {
     toast({
-      title: "Event created",
-      description: "Your event has been created successfully."
+      title: "Event Created",
+      description: `${newEvent.title} has been successfully created.`,
     });
-
-    if (scheduleNotification) {
-      // Logic to schedule notifications would go here
-      toast({
-        title: "Notification scheduled",
-        description: "You will be reminded before the event."
-      });
-    }
+    
+    fetchEvents();
   };
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <Skeleton className="h-8 w-36" />
-          <Skeleton className="h-9 w-24" />
-        </div>
-        <Skeleton className="h-10 w-full mb-6" />
-        <div className="space-y-4">
-          {Array(3).fill(null).map((_, i) => (
-            <Skeleton key={i} className="h-40 w-full rounded-lg" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const handleEventClick = (event: Event) => {
+    // Navigate to event detail or open event modal
+    console.log("Event clicked:", event);
+  };
 
-  // Error state
-  if (error) {
-    return (
-      <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
-        <EmptyState
-          icon={<Settings className="h-12 w-12 text-muted-foreground" />}
-          title="Error loading events"
-          description={error instanceof Error ? error.message : "Failed to load events"}
-          action={
-            <Button onClick={() => window.location.reload()}>
-              Retry
-            </Button>
-          }
-        />
-      </div>
-    );
-  }
+  const filteredUpcomingEvents = () => {
+    if (selectedFilter === 'all') return upcomingEvents;
+    if (selectedFilter === 'mine') return upcomingEvents.filter(event => event.creator_id === user?.id);
+    if (selectedFilter === 'joined') {
+      return upcomingEvents.filter(event => {
+        return event.participants?.some(p => p.user_id === user?.id && p.status === 'going');
+      });
+    }
+    return upcomingEvents;
+  };
+
+  const eventCount = events?.length || 0;
+  const myEventsCount = events?.filter(event => event.creator_id === user?.id)?.length || 0;
+  const joinedEventsCount = events?.filter(event => 
+    event.participants?.some(p => p.user_id === user?.id && p.status === 'going')
+  )?.length || 0;
 
   return (
-    <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container px-4 py-6 pt-16 md:pt-6 pb-20 md:pb-6">
+      <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Events</h1>
-        <Button onClick={() => setShowCreateEvent(true)}>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button onClick={() => setIsCreateEventModalOpen(true)}>
+          <CalendarPlus className="h-4 w-4 mr-2" />
           Create Event
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-        <div className="flex justify-between items-center mb-2">
-          <TabsList>
-            <TabsTrigger value="all">All Events</TabsTrigger>
-            <TabsTrigger value="my-events">My Events</TabsTrigger>
-          </TabsList>
-          
-          <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="ml-auto">
-                <Filter className="mr-2 h-4 w-4" />
-                Filter
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72" align="end">
-              <div className="grid gap-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium">Filter Options</h4>
-                  <Separator />
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="upcoming-filter">Upcoming only</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Show only future events
-                      </p>
-                    </div>
-                    <Switch
-                      id="upcoming-filter"
-                      checked={filters.upcoming}
-                      onCheckedChange={(checked) => 
-                        setFilters(prev => ({ ...prev, upcoming: checked }))
-                      }
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="created-filter">Created by me</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Show only events you created
-                      </p>
-                    </div>
-                    <Switch
-                      id="created-filter"
-                      checked={filters.created}
-                      onCheckedChange={(checked) => 
-                        setFilters(prev => ({ ...prev, created: checked }))
-                      }
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="participated-filter">Participating</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Show events you're attending
-                      </p>
-                    </div>
-                    <Switch
-                      id="participated-filter"
-                      checked={filters.participated}
-                      onCheckedChange={(checked) => 
-                        setFilters(prev => ({ ...prev, participated: checked }))
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-2xl">{eventCount}</CardTitle>
+            <CardDescription>Total Events</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-2">
+            <Calendar className="h-5 w-5 text-muted-foreground" />
+          </CardContent>
+        </Card>
         
-        <TabsContent value="all">
-          {filteredEvents.length > 0 ? (
-            <div className="space-y-4">
-              {filteredEvents.map(event => (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-2xl">{myEventsCount}</CardTitle>
+            <CardDescription>My Events</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-2">
+            <CalendarCheck className="h-5 w-5 text-muted-foreground" />
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-2xl">{joinedEventsCount}</CardTitle>
+            <CardDescription>Joined Events</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-2">
+            <Users className="h-5 w-5 text-muted-foreground" />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4 overflow-x-auto pb-2">
+        <IconFilter
+          icon={Calendar}
+          label="All"
+          isActive={selectedFilter === 'all'}
+          onClick={() => setSelectedFilter('all')}
+        />
+        <IconFilter
+          icon={CalendarCheck}
+          label="My Events"
+          isActive={selectedFilter === 'mine'}
+          onClick={() => setSelectedFilter('mine')}
+        />
+        <IconFilter
+          icon={Users}
+          label="Joined"
+          isActive={selectedFilter === 'joined'}
+          onClick={() => setSelectedFilter('joined')}
+        />
+      </div>
+
+      <Tabs 
+        defaultValue="upcoming" 
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-4"
+      >
+        <TabsList className="w-full md:w-auto">
+          <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+          <TabsTrigger value="past">Past Events</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="upcoming" className="space-y-4">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+            </div>
+          ) : filteredUpcomingEvents().length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredUpcomingEvents().map((event) => (
                 <EventCard 
-                  key={event.id}
+                  key={event.id} 
                   event={event}
-                  onClick={() => handleSelectEvent(event)}
+                  onEventClick={handleEventClick} 
                 />
               ))}
             </div>
           ) : (
-            <EmptyState
-              icon={<Calendar className="h-12 w-12 text-muted-foreground" />}
-              title="No events found"
-              description="There are no events matching your filters. Try adjusting your filters or create a new event."
-              action={
-                <Button onClick={() => setShowCreateEvent(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Event
-                </Button>
-              }
-            />
+            <Card className="border border-dashed border-muted">
+              <CardContent className="flex flex-col items-center justify-center py-8">
+                <div className="rounded-full bg-muted p-3">
+                  <Calendar className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <h3 className="mt-3 text-lg font-medium">No Upcoming Events</h3>
+                <p className="text-sm text-muted-foreground text-center max-w-xs mt-1">
+                  {selectedFilter !== 'all' 
+                    ? `No ${selectedFilter === 'mine' ? 'events created by you' : 'events you joined'} found.` 
+                    : "There are no upcoming events scheduled. Why not create a new one?"}
+                </p>
+                {selectedFilter === 'all' && (
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setIsCreateEventModalOpen(true)}
+                  >
+                    <FilePlus className="h-4 w-4 mr-2" />
+                    Create Event
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
         
-        <TabsContent value="my-events">
-          {filteredEvents.length > 0 ? (
-            <div className="space-y-4">
-              {filteredEvents.map(event => (
+        <TabsContent value="past" className="space-y-4">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+            </div>
+          ) : pastEvents.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {pastEvents.map((event) => (
                 <EventCard 
-                  key={event.id}
+                  key={event.id} 
                   event={event}
-                  onClick={() => handleSelectEvent(event)}
+                  onEventClick={handleEventClick} 
                 />
               ))}
             </div>
           ) : (
-            <EmptyState
-              icon={<Calendar className="h-12 w-12 text-muted-foreground" />}
-              title="No events found"
-              description="You haven't created any events yet. Create your first event now!"
-              action={
-                <Button onClick={() => setShowCreateEvent(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Event
-                </Button>
-              }
-            />
+            <Card className="border border-dashed border-muted">
+              <CardContent className="flex flex-col items-center justify-center py-8">
+                <div className="rounded-full bg-muted p-3">
+                  <Calendar className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <h3 className="mt-3 text-lg font-medium">No Past Events</h3>
+                <p className="text-sm text-muted-foreground text-center max-w-xs mt-1">
+                  There's no history of past events yet. Events will appear here once they've passed.
+                </p>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
       </Tabs>
 
-      {/* Event Details Modal */}
-      <EventDetailsModal
-        event={selectedEvent}
-        open={showEventDetails}
-        onClose={() => setShowEventDetails(false)}
-      />
-
-      {/* Create Event Modal */}
       <CreateEventModal
-        isOpen={showCreateEvent}
-        onOpenChange={setShowCreateEvent}
-        onEventCreated={handleCreateNewEvent}
-        scheduleNotification={scheduleNotification}
-        onToggleNotification={setScheduleNotification}
+        open={isCreateEventModalOpen}
+        onClose={() => setIsCreateEventModalOpen(false)}
+        onEventCreated={handleCreateEvent}
+        scheduleNotification={showNotifications}
+        onToggleNotification={setShowNotifications}
       />
     </div>
   );

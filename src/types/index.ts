@@ -1,4 +1,3 @@
-
 export interface Place {
   id: string;
   name: string;
@@ -168,4 +167,63 @@ export interface NotificationOptions {
   }[];
   requireInteraction?: boolean;
   silent?: boolean;
+}
+
+export interface EventDetailsModalProps {
+  open: boolean; 
+  onClose: () => void;
+  event: Event;
+  place: Place;
+  isOwner: boolean;
+  onUpdateEvent: () => void;
+}
+
+export interface CreateEventModalProps {
+  open: boolean;
+  onClose: () => void;
+  onEventCreated: (newEvent: Event) => void;
+  scheduleNotification: boolean;
+  onToggleNotification: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+export interface EventCardProps {
+  event: Event;
+  onEventClick?: (event: Event) => void;
+}
+
+export interface IconFilterProps {
+  icon: React.ElementType;
+  label: string;
+  isActive?: boolean;
+  onClick: () => void;
+}
+
+// Add payment types
+export interface PaymentMethod {
+  id: string;
+  type: 'card' | 'paypal' | 'bank_transfer';
+  last4?: string;
+  brand?: string;
+  expMonth?: number;
+  expYear?: number;
+  isDefault: boolean;
+}
+
+export interface PaymentIntent {
+  id: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'processing' | 'succeeded' | 'canceled' | 'failed';
+  created_at: string;
+  payment_method?: string;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  price: number;
+  interval: 'month' | 'year';
+  features: string[];
+  isPopular?: boolean;
+  description?: string;
 }

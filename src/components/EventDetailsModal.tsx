@@ -1,217 +1,256 @@
 
 import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
-import { CalendarIcon, MapPinIcon, UsersIcon, X, Check, Clock } from 'lucide-react';
-import { Event, ParticipantData } from '@/types';
-import { useAuth } from '@/hooks/useAuthContext';
-import { useEvents } from '@/hooks/useEvents';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsList, TabsContent, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Event, Place, ParticipantData, EventDetailsModalProps } from '@/types';
+import { MapPin, Calendar, User, Users, MessageSquare, Clock, Map, ExternalLink, Edit, Trash } from 'lucide-react';
+import { useAuth } from "@/hooks/useAuthContext";
+import { useEvents } from "@/hooks/useEvents";
+import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { formatDate } from "@/integrations/supabase/client";
+import { useToast } from '@/hooks/use-toast';
 
-interface EventDetailsModalProps {
-  event?: Event | null;
-  open: boolean;
-  onClose: () => void;
-}
-
-const EventDetailsModal = ({ event, open, onClose }: EventDetailsModalProps) => {
+const EventDetailsModal: React.FC<EventDetailsModalProps> = ({ 
+  open, 
+  onClose, 
+  event, 
+  place,
+  isOwner,
+  onUpdateEvent
+}) => {
   const { user } = useAuth();
-  const { useEvent, useToggleParticipation } = useEvents();
-  const [activeTab, setActiveTab] = useState<string>('details');
+  const { joinEvent, leaveEvent, deleteEvent } = useEvents();
+  const [userStatus, setUserStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [participants, setParticipants] = useState<ParticipantData[]>([]);
+  const { toast } = useToast();
   
-  // Fetch event details including participants
-  const { data: eventDetails, isLoading } = useEvent(event?.id || '');
-  const { mutate: toggleParticipation } = useToggleParticipation();
-
-  // Update participants when event details change
   useEffect(() => {
-    if (eventDetails?.participants) {
-      // Ensure participants match the expected ParticipantData type
-      const typedParticipants = eventDetails.participants.map(participant => ({
-        id: participant.id,
-        user_id: participant.user_id,
-        event_id: participant.event_id,
-        status: participant.status as 'going' | 'maybe' | 'not_going' | 'invited' | 'accepted' | 'declined',
-        created_at: participant.created_at,
-        user: participant.user
-      }));
+    if (event && event.participants) {
+      // Make sure we handle the right type here
+      const typedParticipants = event.participants.map(p => ({
+        ...p,
+        user: p.user || { full_name: 'Unknown User' }
+      })) as ParticipantData[];
       
       setParticipants(typedParticipants);
+      
+      // Find the current user's status
+      if (user) {
+        const userParticipation = typedParticipants.find(p => p.user_id === user.id);
+        setUserStatus(userParticipation ? userParticipation.status : null);
+      }
     }
-  }, [eventDetails]);
+  }, [event, user]);
 
-  const handleParticipation = (status: 'going' | 'maybe' | 'not_going') => {
-    if (!event?.id) return;
-    toggleParticipation({ eventId: event.id, status });
+  const handleAction = async (action: string) => {
+    if (!user || !event) return;
+    
+    setLoading(true);
+    try {
+      if (action === 'join') {
+        await joinEvent(event.id, 'going');
+        toast({
+          title: "You joined the event!",
+          description: `You are now going to ${event.title}`,
+        });
+      } else if (action === 'leave') {
+        await leaveEvent(event.id);
+        toast({
+          title: "You left the event",
+          description: `You are no longer participating in ${event.title}`,
+        });
+      }
+      onUpdateEvent();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `Failed to ${action} event: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const userParticipation = participants.find(p => p.user_id === user?.id)?.status || null;
+  const handleDelete = async () => {
+    if (!event) return;
+    
+    setLoading(true);
+    try {
+      await deleteEvent(event.id);
+      onClose();
+      toast({
+        title: "Event deleted",
+        description: "The event has been successfully deleted",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (!event) return null;
+  if (!event || !place) return null;
 
-  const formattedDate = event.event_date 
-    ? format(new Date(event.event_date), 'EEEE, MMMM d, yyyy · h:mm a')
-    : 'Date not available';
-
+  const eventDate = new Date(event.event_date);
+  const isPastEvent = eventDate < new Date();
+  
   return (
-    <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader className="mb-4">
-          <SheetTitle className="text-xl font-bold">{event.title}</SheetTitle>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={onClose}
-            className="absolute right-4 top-4 rounded-full p-2 h-8 w-8"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </SheetHeader>
-
-        {isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-32 w-full rounded-md" />
-            <Skeleton className="h-4 w-3/4 rounded-md" />
-            <Skeleton className="h-4 w-1/2 rounded-md" />
-          </div>
-        ) : (
-          <>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-              <TabsList className="grid grid-cols-2 w-full mb-4">
-                <TabsTrigger value="details">Details</TabsTrigger>
-                <TabsTrigger value="participants">
-                  Participants ({participants.length})
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="details" className="space-y-4">
-                {event.place && (
-                  <div className="aspect-video w-full overflow-hidden rounded-md mb-4">
-                    <img
-                      src={event.place.imageUrl || '/placeholder.svg'}
-                      alt={event.place.name}
-                      className="object-cover w-full h-full"
-                    />
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <CalendarIcon className="h-4 w-4" />
-                  <span className="text-sm">{formattedDate}</span>
-                </div>
-                
-                {event.place && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <MapPinIcon className="h-4 w-4" />
-                    <span className="text-sm">{event.place.name} - {event.place.address}</span>
-                  </div>
-                )}
-                
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <UsersIcon className="h-4 w-4" />
-                  <span className="text-sm">
-                    {event.max_participants ? 
-                      `${participants.length} / ${event.max_participants} participants` : 
-                      `${participants.length} participants`}
-                  </span>
-                </div>
-
-                {event.description && (
-                  <div className="mt-4 text-sm">
-                    <h4 className="font-medium mb-1">About this event</h4>
-                    <p className="text-muted-foreground whitespace-pre-line">{event.description}</p>
-                  </div>
-                )}
-
-                {event.creator && (
-                  <div className="flex items-center gap-3 mt-4">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage 
-                        src={event.creator.avatar_url || ''} 
-                        alt={event.creator.full_name || 'Event creator'} 
-                      />
-                      <AvatarFallback>
-                        {(event.creator.full_name || '').charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Created by</p>
-                      <p className="text-sm font-medium">{event.creator.full_name}</p>
-                    </div>
-                  </div>
-                )}
-              </TabsContent>
-              
-              <TabsContent value="participants">
-                <div className="space-y-4">
-                  <h4 className="font-medium text-sm">People attending</h4>
-                  
-                  {participants.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No one has joined this event yet. Be the first!</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {participants.map((participant) => (
-                        <div key={participant.id} className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage 
-                                src={participant.user?.avatar_url || ''} 
-                                alt={participant.user?.full_name || ''} 
-                              />
-                              <AvatarFallback>
-                                {participant.user?.full_name?.charAt(0) || '?'}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm">{participant.user?.full_name}</span>
-                          </div>
-                          <Badge variant={
-                            participant.status === 'going' ? 'default' : 
-                            participant.status === 'maybe' ? 'outline' : 'secondary'
-                          }>
-                            {participant.status}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
-
-            {event.status === 'active' && user && (
-              <SheetFooter className="flex-row gap-2 sm:justify-start">
-                <Button
-                  variant={userParticipation === 'going' ? 'default' : 'outline'}
-                  onClick={() => handleParticipation('going')}
-                >
-                  <Check className="mr-2 h-4 w-4" />
-                  I'm Going
-                </Button>
-                <Button
-                  variant={userParticipation === 'maybe' ? 'default' : 'outline'}
-                  onClick={() => handleParticipation('maybe')}
-                >
-                  <Clock className="mr-2 h-4 w-4" />
-                  Maybe
-                </Button>
-                <Button
-                  variant={userParticipation === 'not_going' ? 'default' : 'outline'}
-                  onClick={() => handleParticipation('not_going')}
-                >
-                  <X className="mr-2 h-4 w-4" />
-                  Can't Go
-                </Button>
-              </SheetFooter>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="sm:max-w-md md:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-semibold">{event.title}</DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4 mt-2">
+          {place.imageUrl && (
+            <div className="relative h-40 w-full overflow-hidden rounded-md">
+              <img 
+                src={place.imageUrl} 
+                alt={place.name} 
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+                <h3 className="text-white font-medium">{place.name}</h3>
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-2">
+            <div className="flex items-center text-muted-foreground">
+              <MapPin className="h-4 w-4 mr-2" />
+              <span className="text-sm">{place.address}</span>
+            </div>
+            
+            <div className="flex items-center text-muted-foreground">
+              <Calendar className="h-4 w-4 mr-2" />
+              <span className="text-sm">{formatDate(event.event_date)}</span>
+            </div>
+            
+            <div className="flex items-center text-muted-foreground">
+              <Users className="h-4 w-4 mr-2" />
+              <span className="text-sm">
+                {event.participants_count || participants.length} attending 
+                {event.max_participants ? ` (max ${event.max_participants})` : ''}
+              </span>
+            </div>
+            
+            {event.creator && (
+              <div className="flex items-center text-muted-foreground">
+                <User className="h-4 w-4 mr-2" />
+                <span className="text-sm">Organized by {event.creator.full_name}</span>
+              </div>
             )}
-          </>
-        )}
-      </SheetContent>
-    </Sheet>
+          </div>
+          
+          {event.description && (
+            <div className="pt-2 border-t">
+              <h4 className="text-sm font-medium mb-1">Description</h4>
+              <p className="text-sm text-muted-foreground">{event.description}</p>
+            </div>
+          )}
+          
+          <div className="pt-2 border-t">
+            <h4 className="text-sm font-medium mb-2">Participants</h4>
+            <div className="flex flex-wrap gap-2">
+              {participants.length > 0 ? (
+                participants.map((participant) => (
+                  <div key={participant.id} className="flex items-center gap-2 bg-secondary rounded-full pl-1 pr-3 py-1">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={participant.user?.avatar_url} />
+                      <AvatarFallback>{participant.user?.full_name?.charAt(0) || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs">{participant.user?.full_name}</span>
+                    <Badge variant="outline" className="text-[10px] h-4">{participant.status}</Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground">No participants yet</p>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex justify-between pt-4 border-t">
+            {isOwner ? (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={loading}>
+                  <Edit className="h-4 w-4 mr-1" />
+                  Edit
+                </Button>
+                
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" disabled={loading}>
+                      <Trash className="h-4 w-4 mr-1" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Event</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete this event? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete} disabled={loading}>
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            ) : (
+              <>
+                {userStatus ? (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleAction('leave')}
+                    disabled={loading || isPastEvent}
+                  >
+                    Leave Event
+                  </Button>
+                ) : (
+                  <Button 
+                    size="sm" 
+                    onClick={() => handleAction('join')}
+                    disabled={loading || isPastEvent || (event.max_participants !== null && event.participants_count !== undefined && event.participants_count >= event.max_participants)}
+                  >
+                    Join Event
+                  </Button>
+                )}
+              </>
+            )}
+            
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <a href={`https://maps.google.com/?q=${place.location.lat},${place.location.lng}`} target="_blank" rel="noopener noreferrer">
+                  <Map className="h-4 w-4 mr-1" />
+                  View Map
+                </a>
+              </Button>
+              {place.website && (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={place.website} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Website
+                  </a>
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
