@@ -21,7 +21,7 @@ const GroupEvents: React.FC = () => {
   const { places } = usePlaces();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { requestPermission, scheduleNotification } = useNotifications();
+  const { requestPermission } = useNotifications();
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('upcoming');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -223,13 +223,12 @@ const GroupEvents: React.FC = () => {
         </TabsContent>
       </Tabs>
 
-      <CreateEventModal
-        open={isCreateEventModalOpen}
-        onClose={() => setIsCreateEventModalOpen(false)}
-        onEventCreated={handleCreateEvent}
-        scheduleNotification={showNotifications}
-        onToggleNotification={setShowNotifications}
-      />
+      {isCreateEventModalOpen && (
+        <CreateEventModal
+          onClose={() => setIsCreateEventModalOpen(false)}
+          onEventCreated={handleCreateEvent}
+        />
+      )}
     </div>
   );
 };

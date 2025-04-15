@@ -1,11 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from "@/hooks/useAuthContext";
 import { useNotifications } from "@/hooks/useNotifications";
 import { usePlaces } from '@/hooks/usePlaces';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useSubscription } from '@/hooks/useSubscription';
 import ProfileHeader from "@/components/ProfileHeader";
 import ProfileOverview from "@/components/ProfileOverview";
 import ProfileStats from "@/components/ProfileStats";
@@ -26,9 +27,10 @@ const Profile = () => {
   const { isSupported: notificationsSupported } = useNotifications();
   const { places } = usePlaces();
   const { profile, isLoading, error, updateProfile } = useUserProfile();
+  const subscription = useSubscription();
 
   // Redirect to auth page if not logged in
-  React.useEffect(() => {
+  useEffect(() => {
     if (!user && !isLoading) {
       navigate('/auth');
     }
@@ -141,7 +143,7 @@ const Profile = () => {
           </TabsContent>
           
           <TabsContent value="payments" className="mt-6">
-            <PaymentsTab user={profile} />
+            <PaymentsTab user={profile} subscription={subscription} />
           </TabsContent>
           
           <TabsContent value="settings" className="mt-6">

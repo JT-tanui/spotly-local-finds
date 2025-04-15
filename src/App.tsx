@@ -25,6 +25,7 @@ import { CapacitorService } from "./services/capacitorService";
 
 import "./index.css";
 
+// Create a client
 const queryClient = new QueryClient();
 
 const AppRoutes = () => {
@@ -90,18 +91,24 @@ const AppRoutes = () => {
   );
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <BrowserRouter>
-      <AuthContextProvider>
-        <TooltipProvider delayDuration={300}>
-          <AppRoutes />
-          <Toaster />
-          <Sonner position="top-center" />
-        </TooltipProvider>
-      </AuthContextProvider>
-    </BrowserRouter>
-  </QueryClientProvider>
-);
+// Define App outside the export to ensure proper React context is available
+const App = () => {
+  // Use the explicit React import
+  return (
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthContextProvider>
+            <TooltipProvider delayDuration={300}>
+              <AppRoutes />
+              <Toaster />
+              <Sonner position="top-center" />
+            </TooltipProvider>
+          </AuthContextProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </React.StrictMode>
+  );
+};
 
 export default App;
