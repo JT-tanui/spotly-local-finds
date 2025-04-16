@@ -18,7 +18,7 @@ import { IconFilter } from '@/components/IconFilter';
 const GroupEvents: React.FC = () => {
   const navigate = useNavigate();
   const { events, loading, upcomingEvents, pastEvents, fetchEvents } = useEvents();
-  const { places } = usePlaces();
+  const { places } = usePlaces(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const { requestPermission } = useNotifications();

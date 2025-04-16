@@ -1,15 +1,16 @@
 
 import React, { useState } from 'react';
-import { UserProfile, PaymentMethod } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { UserProfile, PaymentMethod, SubscriptionPlan } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CreditCard, Plus, Clock, Check, AlertTriangle, Trash } from 'lucide-react';
+import { CreditCard, Plus, Clock, Check, AlertTriangle, Trash, ExternalLink, Shield, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 // Mock payment methods - this would be fetched from Supabase/Stripe in a real implementation
 const mockPaymentMethods: PaymentMethod[] = [
@@ -42,15 +43,67 @@ const mockPaymentHistory = [
   }
 ];
 
+// Subscription plans
+const subscriptionPlans: SubscriptionPlan[] = [
+  {
+    id: 'plan_basic',
+    name: 'Basic',
+    price: 0,
+    interval: 'month',
+    features: [
+      'Access to basic features',
+      'Create up to 3 events',
+      'Standard support'
+    ],
+    description: 'Free tier with limited features'
+  },
+  {
+    id: 'plan_premium',
+    name: 'Premium',
+    price: 1999,
+    interval: 'month',
+    features: [
+      'All basic features',
+      'Unlimited events',
+      'Priority support',
+      'No ads',
+      'Advanced analytics'
+    ],
+    isPopular: true,
+    description: 'Most popular plan for enthusiasts'
+  },
+  {
+    id: 'plan_professional',
+    name: 'Professional',
+    price: 4999,
+    interval: 'month',
+    features: [
+      'All premium features',
+      'Dedicated account manager',
+      'API access',
+      'Custom branding',
+      'Team collaboration'
+    ],
+    description: 'For businesses and professional organizers'
+  }
+];
+
 interface PaymentsTabProps {
   user: UserProfile;
+  subscription?: any;
 }
 
-const PaymentsTab: React.FC<PaymentsTabProps> = ({ user }) => {
+const PaymentsTab: React.FC<PaymentsTabProps> = ({ user, subscription }) => {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(mockPaymentMethods);
   const [activeTab, setActiveTab] = useState('methods');
   const [isAddingCard, setIsAddingCard] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+  
+  const isSubscribed = subscription?.subscribed || false;
+  const currentPlan = isSubscribed ? subscription?.subscriptionTier?.toLowerCase() || 'basic' : 'basic';
 
   const handleAddCard = () => {
     // In a real implementation, this would integrate with Stripe Elements
@@ -80,6 +133,51 @@ const PaymentsTab: React.FC<PaymentsTabProps> = ({ user }) => {
       title: "Default payment method updated",
       description: "Your default payment method has been updated."
     });
+  };
+
+  const handleSubscribe = (plan: SubscriptionPlan) => {
+    setSelectedPlan(plan);
+    setIsCheckoutOpen(true);
+  };
+
+  const handleCheckout = async () => {
+    if (!selectedPlan) return;
+    
+    if (subscription?.createCheckoutSession) {
+      try {
+        // This would be the actual price ID from Stripe
+        const priceId = selectedPlan.id === 'plan_premium' ? 'price_premium_monthly' : 'price_professional_monthly';
+        await subscription.createCheckoutSession(priceId);
+        
+        // The createCheckoutSession function should redirect to Stripe
+        // If it doesn't, we can show a toast notification
+        toast({
+          title: "Redirecting to checkout",
+          description: "You'll be redirected to complete your purchase."
+        });
+      } catch (error) {
+        console.error("Checkout error:", error);
+        toast({
+          variant: "destructive",
+          title: "Checkout failed",
+          description: "There was an error initiating checkout. Please try again."
+        });
+      }
+    } else {
+      // Simulate redirect for demo purposes
+      navigate('/checkout');
+    }
+  };
+
+  const handleManageSubscription = () => {
+    if (subscription?.openCustomerPortal) {
+      subscription.openCustomerPortal();
+    } else {
+      toast({
+        title: "Customer Portal",
+        description: "This would open the Stripe Customer Portal in a real implementation."
+      });
+    }
   };
 
   return (
@@ -237,48 +335,29 @@ const PaymentsTab: React.FC<PaymentsTabProps> = ({ user }) => {
           
           <TabsContent value="subscription">
             <div className="space-y-6">
-              <div className="p-6 border rounded-lg bg-slate-50 relative overflow-hidden">
+              <div className={`p-6 rounded-lg relative overflow-hidden ${
+                isSubscribed ? 'bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20' : 'bg-slate-50 border'
+              } border`}>
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold">Free Plan</h3>
+                    <h3 className="text-lg font-semibold">
+                      {isSubscribed ? (
+                        subscription?.subscriptionTier || 'Premium'
+                      ) : 'Free Plan'}
+                    </h3>
                     <p className="text-sm text-muted-foreground">Current plan</p>
                   </div>
-                  <Badge>Active</Badge>
+                  <Badge>{isSubscribed ? 'Active' : 'Free'}</Badge>
                 </div>
                 
                 <Separator className="my-4" />
                 
                 <div className="space-y-2">
-                  <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2" />
-                    <p className="text-sm">Basic features</p>
-                  </div>
-                  <div className="flex items-center">
-                    <Check className="h-4 w-4 text-green-500 mr-2" />
-                    <p className="text-sm">Create events</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Card className="border-2 border-primary overflow-hidden relative">
-                  <div className="absolute top-2 right-2">
-                    <Badge>Recommended</Badge>
-                  </div>
-                  <CardHeader>
-                    <CardTitle>Premium</CardTitle>
-                    <CardDescription>
-                      <div className="flex items-end gap-1">
-                        <span className="text-3xl font-bold">$19.99</span>
-                        <span className="text-muted-foreground">/month</span>
-                      </div>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
+                  {isSubscribed ? (
+                    <>
                       <div className="flex items-center">
                         <Check className="h-4 w-4 text-green-500 mr-2" />
-                        <p className="text-sm">All basic features</p>
+                        <p className="text-sm">All premium features</p>
                       </div>
                       <div className="flex items-center">
                         <Check className="h-4 w-4 text-green-500 mr-2" />
@@ -288,55 +367,136 @@ const PaymentsTab: React.FC<PaymentsTabProps> = ({ user }) => {
                         <Check className="h-4 w-4 text-green-500 mr-2" />
                         <p className="text-sm">Priority support</p>
                       </div>
-                    </div>
-                    <Button className="w-full" onClick={() => 
-                      toast({
-                        title: "Implementation required",
-                        description: "This would integrate with Stripe Checkout"
-                      })
-                    }>
-                      Upgrade
-                    </Button>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Professional</CardTitle>
-                    <CardDescription>
-                      <div className="flex items-end gap-1">
-                        <span className="text-3xl font-bold">$49.99</span>
-                        <span className="text-muted-foreground">/month</span>
+                      
+                      {subscription?.subscriptionEnd && (
+                        <p className="text-sm text-muted-foreground mt-4">
+                          Renews on {new Date(subscription.subscriptionEnd).toLocaleDateString()}
+                        </p>
+                      )}
+                      
+                      <div className="mt-4 pt-4 border-t">
+                        <Button 
+                          variant="outline" 
+                          onClick={handleManageSubscription}
+                          className="w-full"
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Manage Subscription
+                        </Button>
                       </div>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
+                    </>
+                  ) : (
+                    <>
                       <div className="flex items-center">
                         <Check className="h-4 w-4 text-green-500 mr-2" />
-                        <p className="text-sm">All premium features</p>
+                        <p className="text-sm">Basic features</p>
                       </div>
                       <div className="flex items-center">
                         <Check className="h-4 w-4 text-green-500 mr-2" />
-                        <p className="text-sm">Advanced analytics</p>
+                        <p className="text-sm">Create events</p>
                       </div>
-                      <div className="flex items-center">
-                        <Check className="h-4 w-4 text-green-500 mr-2" />
-                        <p className="text-sm">Dedicated account manager</p>
-                      </div>
-                    </div>
-                    <Button variant="outline" className="w-full" onClick={() => 
-                      toast({
-                        title: "Implementation required",
-                        description: "This would integrate with Stripe Checkout"
-                      })
-                    }>
-                      Upgrade
-                    </Button>
-                  </CardContent>
-                </Card>
+                    </>
+                  )}
+                </div>
               </div>
+              
+              {!isSubscribed && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {subscriptionPlans.map((plan) => (
+                    <Card 
+                      key={plan.id} 
+                      className={`overflow-hidden relative ${
+                        plan.isPopular ? 'border-2 border-primary' : ''
+                      }`}
+                    >
+                      {plan.isPopular && (
+                        <div className="absolute top-0 right-0">
+                          <div className="bg-primary text-white px-3 py-1 transform rotate-0 origin-top-right">
+                            <Sparkles className="h-3 w-3 inline-block mr-1" /> Popular
+                          </div>
+                        </div>
+                      )}
+                      <CardHeader>
+                        <CardTitle>{plan.name}</CardTitle>
+                        <CardDescription>
+                          <div className="flex items-end gap-1">
+                            <span className="text-3xl font-bold">
+                              ${(plan.price / 100).toFixed(2)}
+                            </span>
+                            <span className="text-muted-foreground">/{plan.interval}</span>
+                          </div>
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          {plan.features.map((feature, idx) => (
+                            <div key={idx} className="flex items-center">
+                              <Check className="h-4 w-4 text-green-500 mr-2 shrink-0" />
+                              <p className="text-sm">{feature}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                      <CardFooter>
+                        <Button 
+                          className="w-full" 
+                          variant={plan.price > 0 ? (plan.isPopular ? "default" : "outline") : "secondary"}
+                          disabled={plan.price === 0}
+                          onClick={() => handleSubscribe(plan)}
+                        >
+                          {plan.price === 0 ? 'Current Plan' : 'Upgrade'}
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
+            
+            {/* Checkout Modal */}
+            <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Complete Your Purchase</DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
+                  {selectedPlan && (
+                    <div className="space-y-4">
+                      <div className="bg-muted p-4 rounded-md">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <h3 className="font-medium">{selectedPlan.name} Plan</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Billed {selectedPlan.interval}ly
+                            </p>
+                          </div>
+                          <p className="font-semibold">
+                            ${(selectedPlan.price / 100).toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 text-sm">
+                        <Shield className="h-4 w-4 text-green-500" />
+                        <span>Secure payment processed by Stripe</span>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2">
+                        <Button onClick={handleCheckout}>
+                          Proceed to Checkout
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => setIsCheckoutOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
         </Tabs>
       </CardContent>

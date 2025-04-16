@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from "@/hooks/useAuthContext";
 import { useNotifications } from "@/hooks/useNotifications";
 import { usePlaces } from '@/hooks/usePlaces';
@@ -21,11 +21,14 @@ import { AlertCircle } from 'lucide-react';
 
 const Profile = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(() => {
+    return searchParams.get('tab') || "overview"; 
+  });
   const [isEditing, setIsEditing] = useState(false);
   const { isSupported: notificationsSupported } = useNotifications();
-  const { places } = usePlaces();
+  const { places } = usePlaces(null);
   const { profile, isLoading, error, updateProfile } = useUserProfile();
   const subscription = useSubscription();
 
@@ -35,6 +38,22 @@ const Profile = () => {
       navigate('/auth');
     }
   }, [user, navigate, isLoading]);
+
+  // Update URL when tab changes
+  useEffect(() => {
+    navigate(`/profile?tab=${activeTab}`, { replace: true });
+  }, [activeTab, navigate]);
+
+  // Check for success or canceled payment parameters
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const canceled = searchParams.get('canceled');
+    
+    if (success === 'true') {
+      // Refresh subscription status
+      subscription.checkSubscription();
+    }
+  }, [searchParams, subscription]);
 
   const handleProfileUpdate = async (updatedProfile: Partial<typeof profile>) => {
     updateProfile(updatedProfile);

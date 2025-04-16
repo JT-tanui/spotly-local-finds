@@ -52,8 +52,14 @@ export function useSubscription() {
 
   const createCheckoutSession = async (priceId: string) => {
     try {
+      setStatus(prev => ({ ...prev, isLoading: true }));
+      
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { priceId }
+        body: { 
+          priceId,
+          successUrl: `${window.location.origin}/profile?tab=payments&success=true`,
+          cancelUrl: `${window.location.origin}/profile?tab=payments&canceled=true`
+        }
       });
 
       if (error) {
@@ -71,11 +77,14 @@ export function useSubscription() {
         title: 'Checkout Failed',
         description: err instanceof Error ? err.message : 'Failed to create checkout session'
       });
+      setStatus(prev => ({ ...prev, isLoading: false }));
     }
   };
 
   const openCustomerPortal = async () => {
     try {
+      setStatus(prev => ({ ...prev, isLoading: true }));
+      
       const { data, error } = await supabase.functions.invoke('customer-portal');
 
       if (error) {
@@ -93,6 +102,7 @@ export function useSubscription() {
         title: 'Error',
         description: err instanceof Error ? err.message : 'Failed to open customer portal'
       });
+      setStatus(prev => ({ ...prev, isLoading: false }));
     }
   };
 

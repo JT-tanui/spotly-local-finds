@@ -1,3 +1,4 @@
+
 export interface Place {
   id: string;
   name: string;
@@ -197,7 +198,7 @@ export interface IconFilterProps {
   onClick: () => void;
 }
 
-// Add payment types
+// Payment types
 export interface PaymentMethod {
   id: string;
   type: 'card' | 'paypal' | 'bank_transfer';
@@ -225,4 +226,25 @@ export interface SubscriptionPlan {
   features: string[];
   isPopular?: boolean;
   description?: string;
+}
+
+// Checkout interfaces
+export interface CheckoutItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image?: string;
+}
+
+export interface CheckoutFormData {
+  fullName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  zip: string;
+  country: string;
+  paymentMethod: 'card' | 'paypal';
+  savePaymentMethod: boolean;
 }
