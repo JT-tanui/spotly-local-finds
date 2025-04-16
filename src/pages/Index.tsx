@@ -94,8 +94,8 @@ const Index = () => {
         onViewModeChange={handleViewModeChange}
       />
       
-      {/* Standard navbar for other views */}
-      {viewMode !== 'discover' && viewMode !== 'standard' && (
+      {/* Standard navbar for other views - fixed viewMode comparison */}
+      {layoutMode !== 'discover' && layoutMode !== 'standard' && (
         <Navbar location={location} onLocationClick={handleLocationClick} />
       )}
       

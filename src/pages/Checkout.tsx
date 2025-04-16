@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Lock, CreditCard, PaypalLogo, Shield, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Lock, CreditCard, Shield, CheckCircle2 } from 'lucide-react';
 
 // Example data - in a real implementation, this would come from a cart state or API
 const mockItems: CheckoutItem[] = [
@@ -304,7 +304,10 @@ const Checkout: React.FC = () => {
                   <div className="flex items-center space-x-2 border rounded-md p-4 cursor-pointer hover:bg-muted">
                     <RadioGroupItem value="paypal" id="paypal" />
                     <Label htmlFor="paypal" className="flex items-center cursor-pointer">
-                      <PaypalLogo className="h-5 w-5 mr-2" />
+                      <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M17.5 7.2C17.5 5.3 16 4 13.9 4H8C7.6 4 7.3 4.3 7.2 4.7L5 16.5C5 16.8 5.2 17 5.5 17H7.7C8.1 17 8.4 16.7 8.5 16.3L9 14H11.3C14.4 14 16.5 12.3 17.1 9.2C17.4 8.2 17.5 7.7 17.5 7.2Z" fill="#009EE3"/>
+                        <path d="M20.5 9.8C20.1 12.6 18.1 14 15.2 14H13.8L13.1 17.7C13.1 17.9 12.9 18 12.7 18H10.5C10.2 18 10.1 17.8 10.1 17.6L11.1 11.9H13.2C16.6 11.9 18.7 10.5 19.3 7.7C19.5 6.8 19.9 6.1 20.5 5.5" stroke="#113984" strokeWidth="2" strokeMiterlimit="10" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                       PayPal
                     </Label>
                   </div>
@@ -433,6 +436,73 @@ const Checkout: React.FC = () => {
       </div>
     </div>
   );
+
+  // Add the missing handler function
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    
+    // Validate form
+    const requiredFields = ['fullName', 'email', 'phone', 'address', 'city', 'zip', 'country'];
+    const missingFields = requiredFields.filter(field => !formData[field as keyof CheckoutFormData]);
+    
+    if (missingFields.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing Information',
+        description: 'Please fill in all required fields.'
+      });
+      return;
+    }
+    
+    // Process checkout
+    setIsLoading(true);
+    
+    try {
+      // Simulate API call
+      setTimeout(() => {
+        // Show success page
+        setSuccess(true);
+        setIsLoading(false);
+      }, 2000);
+      
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Checkout Failed',
+        description: 'An error occurred during checkout. Please try again.'
+      });
+      setIsLoading(false);
+    }
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value
+    });
+  }
+
+  function handleSelectChange(name: string, value: string) {
+    setFormData({
+      ...formData,
+      [name]: value
+    });
+  }
+
+  function handleCheckboxChange(name: string, checked: boolean) {
+    setFormData({
+      ...formData,
+      [name]: checked
+    });
+  }
+
+  function handlePaymentMethodChange(value: string) {
+    setFormData({
+      ...formData,
+      paymentMethod: value as 'card' | 'paypal'
+    });
+  }
 };
 
 export default Checkout;

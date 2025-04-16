@@ -40,6 +40,7 @@ const GroupEvents: React.FC = () => {
   useEffect(() => {
     const checkPermission = async () => {
       const result = await requestPermission();
+      // Compare with correct string type
       setShowNotifications(result === 'granted');
     };
     checkPermission();
