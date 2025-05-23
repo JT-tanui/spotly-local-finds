@@ -1,7 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Navbar from '@/components/Navbar';
 import SearchFilters from '@/components/SearchFilters';
 import PlacesList from '@/components/PlacesList';
 import Map from '@/components/Map';
@@ -17,14 +15,17 @@ import { useAuth } from '@/hooks/useAuthContext';
 import DinexHeader from '@/components/DinexHeader';
 import DiscoverGrid from '@/components/DiscoverGrid';
 
-const Index = () => {
+interface IndexProps {
+  initialViewMode?: string;
+  onViewModeChange?: (mode: string) => void;
+}
+
+const Index: React.FC<IndexProps> = ({ initialViewMode = 'standard', onViewModeChange }) => {
   const navigate = useNavigate();
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({ category: 'all' });
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
-  const [layoutMode, setLayoutMode] = useState<string>(() => {
-    return localStorage.getItem('layoutMode') || 'standard';
-  });
+  const [layoutMode, setLayoutMode] = useState<string>(initialViewMode);
   
   const { location, loading: locationLoading } = useLocation();
   const { 
@@ -39,9 +40,11 @@ const Index = () => {
   const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    // Save layout mode preference
-    localStorage.setItem('layoutMode', layoutMode);
-  }, [layoutMode]);
+    // Save layout mode preference if not controlled by parent
+    if (!onViewModeChange) {
+      localStorage.setItem('layoutMode', layoutMode);
+    }
+  }, [layoutMode, onViewModeChange]);
 
   const trendingPlaces = React.useMemo(() => {
     return allPlaces
@@ -73,6 +76,9 @@ const Index = () => {
 
   const handleViewModeChange = (mode: string) => {
     setLayoutMode(mode);
+    if (onViewModeChange) {
+      onViewModeChange(mode);
+    }
   };
 
   const categories = [
@@ -88,18 +94,13 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Custom Dinex Header when layoutMode is 'discover' or 'standard' */}
+      {/* Custom Dinex Header for all layouts */}
       <DinexHeader 
         viewMode={layoutMode}
         onViewModeChange={handleViewModeChange}
       />
       
-      {/* Standard navbar for other views - fixed viewMode comparison */}
-      {layoutMode !== 'discover' && layoutMode !== 'standard' && (
-        <Navbar location={location} onLocationClick={handleLocationClick} />
-      )}
-      
-      <main className={`flex-1 pt-[62px] flex flex-col ${isDesktop ? 'px-6' : 'px-0'}`}>
+      <main className="flex-1 pt-[62px] flex flex-col ${isDesktop ? 'px-6' : 'px-0'}">
         <div className="px-4 py-3">
           <h1 className="text-lg font-bold">Hey there, ready to discover?</h1>
           <p className="text-sm text-muted-foreground">Find amazing spots in {location?.city || "your area"}</p>

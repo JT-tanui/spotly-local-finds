@@ -17,11 +17,11 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   isLoading: boolean; // Added for compatibility with existing code
-  profile: UserProfile | null; // Added for compatibility
-  setProfile: (profile: UserProfile | null) => void; // Added for compatibility
-  signIn: (email: string, password: string) => Promise<any>;
-  signUp: (email: string, password: string, userData?: any) => Promise<any>;
-  signOut: () => Promise<any>;
+  profile: UserProfile | null; 
+  setProfile: (profile: UserProfile | null) => void;
+  signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
+  signUp: (email: string, password: string, userData?: any) => Promise<{ data: any; error: any }>;
+  signOut: () => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

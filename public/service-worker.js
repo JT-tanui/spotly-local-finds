@@ -1,120 +1,166 @@
+// Service Worker for Dinex PWA
+const CACHE_NAME = 'dinex-cache-v1';
+const OFFLINE_URL = '/offline.html';
+const STATIC_ASSETS = [
+  '/',
+  '/index.html',
+  '/offline.html',
+  '/manifest.webmanifest',
+  '/favicon.ico',
+  '/apple-touch-icon.png',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
+  // Add other static assets here
+];
 
-// Notification Service Worker
-// This service worker handles push notifications and notification clicks
-
+// Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('Notification Service Worker installed');
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('Opened cache');
+      return cache.addAll(STATIC_ASSETS);
+    })
+  );
+  // Activate immediately
   self.skipWaiting();
 });
 
+// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Notification Service Worker activated');
-  return self.clients.claim();
+  const cacheAllowlist = [CACHE_NAME];
+  
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheAllowlist.indexOf(cacheName) === -1) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+  
+  // Become active for all clients
+  self.clients.claim();
 });
 
-// Handle notification clicks
-self.addEventListener('notificationclick', (event) => {
-  console.log('Notification clicked', event.notification.tag);
+// Fetch event - handle network requests
+self.addEventListener('fetch', (event) => {
+  // For API calls, try network first, then fallback to cache
+  if (event.request.url.includes('/api/')) {
+    event.respondWith(networkFirstStrategy(event.request));
+    return;
+  }
   
-  // Close the notification
+  // For static assets, try cache first, then network
+  if (
+    event.request.destination === 'style' ||
+    event.request.destination === 'script' ||
+    event.request.destination === 'image' ||
+    event.request.destination === 'font' ||
+    STATIC_ASSETS.includes(new URL(event.request.url).pathname)
+  ) {
+    event.respondWith(cacheFirstStrategy(event.request));
+    return;
+  }
+  
+  // For navigation requests (HTML pages)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(networkWithOfflineFallback(event.request));
+    return;
+  }
+  
+  // Default: try network, fallback to cache
+  event.respondWith(networkFirstStrategy(event.request));
+});
+
+// Cache first, fallback to network strategy
+async function cacheFirstStrategy(request) {
+  const cacheResponse = await caches.match(request);
+  return cacheResponse || fetchAndCache(request);
+}
+
+// Network first, fallback to cache strategy
+async function networkFirstStrategy(request) {
+  try {
+    const response = await fetchAndCache(request);
+    return response;
+  } catch (error) {
+    console.log('Network request failed, falling back to cache', error);
+    const cachedResponse = await caches.match(request);
+    return cachedResponse;
+  }
+}
+
+// Network with offline fallback strategy for navigation requests
+async function networkWithOfflineFallback(request) {
+  try {
+    const response = await fetchAndCache(request);
+    return response;
+  } catch (error) {
+    console.log('Navigation request failed, falling back to offline page', error);
+    const cachedResponse = await caches.match(OFFLINE_URL);
+    return cachedResponse;
+  }
+}
+
+// Fetch and cache helper function
+async function fetchAndCache(request) {
+  const response = await fetch(request);
+  
+  // Only cache valid responses (status 200)
+  if (response.status === 200) {
+    const responseClone = response.clone();
+    caches.open(CACHE_NAME).then((cache) => {
+      cache.put(request, responseClone);
+    });
+  }
+  
+  return response;
+}
+
+// Push notification event
+self.addEventListener('push', (event) => {
+  let data = {};
+  
+  try {
+    data = event.data.json();
+  } catch (e) {
+    data = {
+      title: 'Dinex',
+      body: event.data.text()
+    };
+  }
+  
+  const options = {
+    body: data.body || 'New notification',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/badge-72x72.png',
+    data: data.data || {}
+  };
+  
+  event.waitUntil(self.registration.showNotification(data.title || 'Dinex', options));
+});
+
+// Notification click event
+self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   
-  // Handle different notification actions
-  if (event.action === 'reply') {
-    // The user clicked on the reply action
-    const messageData = event.notification.data;
-    
-    // Get all windows clients
-    self.clients.matchAll({
-      type: 'window',
-      includeUncontrolled: true
-    }).then((clients) => {
-      // If we have an open window, focus it and post a message to it
-      if (clients.length > 0) {
-        clients[0].focus();
-        clients[0].postMessage({
-          type: 'reply-action',
-          data: messageData
-        });
-      } else {
-        // Open a new window to the inbox page
-        self.clients.openWindow('/inbox').then((windowClient) => {
-          // Wait for the window to load and then post a message
-          setTimeout(() => {
-            if (windowClient) {
-              windowClient.postMessage({
-                type: 'reply-action',
-                data: messageData
-              });
-            }
-          }, 1000);
-        });
-      }
-    });
-  } else if (event.action === 'view') {
-    // The user clicked on the view action or the notification itself
-    const notificationData = event.notification.data || {};
-    let url = '/';
-    
-    // Determine which page to open based on notification type
-    if (notificationData.type === 'message') {
-      url = '/inbox';
-    } else if (notificationData.type === 'event') {
-      url = `/events?id=${notificationData.eventId}`;
-    }
-    
-    // Get all clients
-    self.clients.matchAll({
-      type: 'window',
-      includeUncontrolled: true
-    }).then((clients) => {
-      // If we have an open window, focus it and navigate
-      for (const client of clients) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.focus();
-          client.navigate(url);
-          return;
+  // Open the app and navigate to a specific page if provided in the notification data
+  const urlToOpen = event.notification.data.url || '/';
+  
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window' }).then((clientList) => {
+      // If a window client already exists, focus it
+      for (const client of clientList) {
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
         }
       }
       
-      // If no window is open, open a new one
-      self.clients.openWindow(url);
-    });
-  } else {
-    // The user clicked the main notification body
-    // Open the inbox or the relevant page
-    const notificationData = event.notification.data || {};
-    let url = '/';
-    
-    if (notificationData.type === 'message') {
-      url = '/inbox';
-    } else if (notificationData.type === 'event') {
-      url = `/events`;
-    }
-    
-    self.clients.openWindow(url);
-  }
-});
-
-// Handle push notifications
-self.addEventListener('push', (event) => {
-  if (!event.data) return;
-  
-  try {
-    const data = event.data.json();
-    
-    event.waitUntil(
-      self.registration.showNotification(data.title, {
-        body: data.body,
-        icon: data.icon || '/favicon.ico',
-        badge: data.badge,
-        tag: data.tag,
-        data: data.data,
-        actions: data.actions,
-        requireInteraction: data.requireInteraction
-      })
-    );
-  } catch (error) {
-    console.error('Error showing push notification:', error);
-  }
+      // Otherwise, open a new window/tab
+      return self.clients.openWindow(urlToOpen);
+    })
+  );
 });

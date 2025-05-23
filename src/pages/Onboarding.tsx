@@ -1,393 +1,396 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useAuth } from '@/hooks/useAuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useIsDesktop } from '@/hooks/useMediaQuery';
-import { Check, ChevronRight, MapPin, Heart } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-
-const categories = [
-  { id: 'restaurant', name: 'Restaurants', emoji: '🍽️' },
-  { id: 'cafe', name: 'Cafes', emoji: '☕' },
-  { id: 'bar', name: 'Bars', emoji: '🍷' },
-  { id: 'park', name: 'Parks', emoji: '🏞️' },
-  { id: 'museum', name: 'Museums', emoji: '🖼️' },
-  { id: 'entertainment', name: 'Entertainment', emoji: '🎭' },
-  { id: 'shopping', name: 'Shopping', emoji: '🛍️' },
-  { id: 'fitness', name: 'Fitness', emoji: '💪' },
-];
-
-const dietaryPreferences = [
-  { id: 'vegetarian', name: 'Vegetarian' },
-  { id: 'vegan', name: 'Vegan' },
-  { id: 'gluten-free', name: 'Gluten Free' },
-  { id: 'dairy-free', name: 'Dairy Free' },
-  { id: 'nut-free', name: 'Nut Free' },
-  { id: 'halal', name: 'Halal' },
-  { id: 'kosher', name: 'Kosher' },
-];
-
-const accessibilityOptions = [
-  { id: 'wheelchair', name: 'Wheelchair Accessible' },
-  { id: 'parking', name: 'Accessible Parking' },
-  { id: 'elevator', name: 'Elevator Access' },
-  { id: 'restroom', name: 'Accessible Restroom' },
-];
+import { UserProfile } from '@/contexts/AuthContext';
 
 const Onboarding = () => {
-  const [step, setStep] = useState(1);
-  const [phone, setPhone] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedDietary, setSelectedDietary] = useState<string[]>([]);
-  const [selectedAccessibility, setSelectedAccessibility] = useState<string[]>([]);
-  const [priceRange, setPriceRange] = useState<number[]>([1, 3]); // Default 1-3 out of 4
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const isDesktop = useIsDesktop();
-  const { user, profile, setProfile } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
-
-  const totalSteps = 4;
+  const { user, setProfile } = useAuth();
+  const { toast } = useToast();
+  const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    fullName: user?.user_metadata?.full_name || '',
+    email: user?.email || '',
+    dietaryPreferences: [] as string[],
+    foodInterests: [] as string[],
+    notificationPreferences: {
+      email: true,
+      push: true,
+    },
+    profileImage: null as File | null,
+    previewImage: '',
+  });
   
-  const handleCategoryToggle = (categoryId: string) => {
-    setSelectedCategories(prev => 
-      prev.includes(categoryId) 
-        ? prev.filter(id => id !== categoryId)
-        : [...prev, categoryId]
-    );
-  };
-  
-  const handleDietaryToggle = (id: string) => {
-    setSelectedDietary(prev => 
-      prev.includes(id) 
-        ? prev.filter(item => item !== id)
-        : [...prev, id]
-    );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/auth');
+    }
+  }, [user, navigate]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAccessibilityToggle = (id: string) => {
-    setSelectedAccessibility(prev => 
-      prev.includes(id) 
-        ? prev.filter(item => item !== id)
-        : [...prev, id]
-    );
-  };
-
-  const handlePriceToggle = (price: number) => {
-    setPriceRange(prev => {
-      // If this price is already the min, update the min
-      if (price === prev[0]) {
-        return [Math.min(price + 1, prev[1]), prev[1]];
-      }
-      // If this price is already the max, update the max
-      else if (price === prev[1]) {
-        return [prev[0], Math.max(price - 1, prev[0])];
-      }
-      // If this price is in the range, make it the new min or max
-      else if (price > prev[0] && price < prev[1]) {
-        // Determine whether to make it new min or max based on which is closer
-        return (price - prev[0] <= prev[1] - price)
-          ? [price, prev[1]]
-          : [prev[0], price];
-      }
-      // If this price is outside the range, make it new min or max
-      else {
-        return price < prev[0]
-          ? [price, prev[1]]
-          : [prev[0], price];
+  const handleCheckboxChange = (id: string, type: 'dietaryPreferences' | 'foodInterests') => {
+    setFormData(prev => {
+      const current = [...prev[type]];
+      if (current.includes(id)) {
+        return { ...prev, [type]: current.filter(item => item !== id) };
+      } else {
+        return { ...prev, [type]: [...current, id] };
       }
     });
   };
 
-  const isPriceInRange = (price: number) => {
-    return price >= priceRange[0] && price <= priceRange[1];
+  const handleNotificationChange = (type: 'email' | 'push', value: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      notificationPreferences: {
+        ...prev.notificationPreferences,
+        [type]: value
+      }
+    }));
   };
 
-  const saveUserPreferences = async () => {
-    if (!user) return;
-    
-    setIsLoading(true);
-    try {
-      // Update profile with phone
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ phone })
-        .eq('id', user.id);
-        
-      if (profileError) throw profileError;
-      
-      // Update user preferences
-      const { error: preferencesError } = await supabase
-        .from('user_preferences')
-        .update({
-          favorite_categories: selectedCategories,
-          dietary_preferences: selectedDietary,
-          accessibility_needs: selectedAccessibility,
-          price_range: priceRange,
-        })
-        .eq('user_id', user.id);
-        
-      if (preferencesError) throw preferencesError;
-
-      // Update local profile state
-      if (profile) {
-        setProfile({
-          ...profile,
-          phone,
-        });
-      }
-      
-      toast({
-        title: "Setup complete!",
-        description: "Your preferences have been saved.",
-      });
-      
-      navigate('/');
-    } catch (error) {
-      console.error('Error saving preferences:', error);
-      toast({
-        title: "Error saving preferences",
-        description: "Please try again later.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFormData(prev => ({ 
+        ...prev, 
+        profileImage: file,
+        previewImage: URL.createObjectURL(file)
+      }));
     }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
   };
 
   const nextStep = () => {
-    if (step < totalSteps) {
-      setStep(step + 1);
-    } else {
-      saveUserPreferences();
+    if (step === 1 && !formData.fullName) {
+      toast({
+        title: "Missing information",
+        description: "Please enter your full name to continue.",
+        variant: "destructive"
+      });
+      return;
     }
+    setStep(prev => prev + 1);
   };
 
   const prevStep = () => {
-    if (step > 1) {
-      setStep(step - 1);
-    }
+    setStep(prev => prev - 1);
   };
 
-  const renderStep = () => {
-    switch (step) {
-      case 1:
-        return (
-          <>
-            <CardHeader>
-              <CardTitle className="text-2xl text-center">Welcome to Spotly!</CardTitle>
-              <p className="text-center text-muted-foreground">Let's set up your profile</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number (optional)</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+1 (555) 123-4567"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  We'll use this for booking confirmations and event updates
-                </p>
-              </div>
-            </CardContent>
-          </>
-        );
+  const handleSubmit = async () => {
+    if (!user) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Upload profile image if provided
+      let avatarUrl = user.user_metadata?.avatar_url || '';
       
-      case 2:
-        return (
-          <>
-            <CardHeader>
-              <CardTitle className="text-2xl text-center">What do you like?</CardTitle>
-              <p className="text-center text-muted-foreground">Select your favorite categories</p>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-72">
-                <div className="grid grid-cols-2 gap-3">
-                  {categories.map(category => (
-                    <div 
-                      key={category.id}
-                      className={`border rounded-lg p-3 cursor-pointer transition-all ${
-                        selectedCategories.includes(category.id)
-                          ? 'border-spotly-red bg-spotly-red/10'
-                          : 'border-border'
-                      }`}
-                      onClick={() => handleCategoryToggle(category.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xl">{category.emoji}</span>
-                          <span>{category.name}</span>
-                        </div>
-                        {selectedCategories.includes(category.id) && (
-                          <Check className="h-4 w-4 text-spotly-red" />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </>
-        );
+      if (formData.profileImage) {
+        const fileExt = formData.profileImage.name.split('.').pop();
+        const fileName = `${user.id}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        
+        const { error: uploadError, data } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, formData.profileImage);
+          
+        if (uploadError) {
+          throw uploadError;
+        }
+        
+        if (data) {
+          const { data: urlData } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(data.path);
+            
+          avatarUrl = urlData.publicUrl;
+        }
+      }
       
-      case 3:
-        return (
-          <>
-            <CardHeader>
-              <CardTitle className="text-2xl text-center">Dietary Preferences</CardTitle>
-              <p className="text-center text-muted-foreground">Select any dietary preferences you have</p>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  {dietaryPreferences.map(item => (
-                    <div
-                      key={item.id}
-                      className={`border rounded-lg p-2 flex items-center justify-between cursor-pointer ${
-                        selectedDietary.includes(item.id)
-                          ? 'border-spotly-red bg-spotly-red/10'
-                          : 'border-border'
-                      }`}
-                      onClick={() => handleDietaryToggle(item.id)}
-                    >
-                      <span>{item.name}</span>
-                      {selectedDietary.includes(item.id) && (
-                        <Check className="h-4 w-4 text-spotly-red" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="font-medium">Accessibility Needs</h3>
-                  {accessibilityOptions.map(item => (
-                    <div key={item.id} className="flex items-center space-x-2">
-                      <Checkbox 
-                        id={item.id}
-                        checked={selectedAccessibility.includes(item.id)}
-                        onCheckedChange={() => handleAccessibilityToggle(item.id)}
-                      />
-                      <Label htmlFor={item.id}>{item.name}</Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </>
-        );
+      // Update user metadata in auth
+      await supabase.auth.updateUser({
+        data: {
+          full_name: formData.fullName,
+          avatar_url: avatarUrl,
+        }
+      });
       
-      case 4:
-        return (
-          <>
-            <CardHeader>
-              <CardTitle className="text-2xl text-center">Price Range</CardTitle>
-              <p className="text-center text-muted-foreground">Select your preferred price range</p>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  {[1, 2, 3, 4].map(price => (
-                    <div 
-                      key={price}
-                      className={`flex flex-col items-center cursor-pointer`}
-                      onClick={() => handlePriceToggle(price)}
-                    >
-                      <div 
-                        className={`h-12 w-12 rounded-full flex items-center justify-center text-lg border-2 ${
-                          isPriceInRange(price) 
-                            ? 'border-spotly-red bg-spotly-red/10 text-spotly-red' 
-                            : 'border-border text-muted-foreground'
-                        }`}
-                      >
-                        {'$'.repeat(price)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="bg-muted p-4 rounded-lg">
-                  <h3 className="font-medium mb-2">Your Preferences Summary</h3>
-                  
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <Heart className="h-4 w-4 text-spotly-red" />
-                      <span className="text-sm font-medium">Favorite Categories:</span>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedCategories.length > 0 ? (
-                          selectedCategories.map(catId => {
-                            const cat = categories.find(c => c.id === catId);
-                            return cat ? (
-                              <Badge key={catId} variant="outline" className="text-xs">
-                                {cat.emoji} {cat.name}
-                              </Badge>
-                            ) : null;
-                          })
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No categories selected</span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <MapPin className="h-4 w-4 text-spotly-red" />
-                      <span className="text-sm font-medium">Price Range:</span>
-                      <span className="text-sm">{'$'.repeat(priceRange[0])} - {'$'.repeat(priceRange[1])}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </>
-        );
+      // Create or update profile in database
+      const profileData: UserProfile = {
+        id: user.id,
+        full_name: formData.fullName,
+        avatar_url: avatarUrl,
+        email: formData.email,
+        user_id: user.id,
+      };
+      
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert([profileData]);
+        
+      if (profileError) throw profileError;
+      
+      // Store user preferences
+      const { error: preferencesError } = await supabase
+        .from('user_preferences')
+        .upsert([{
+          user_id: user.id,
+          dietary_preferences: formData.dietaryPreferences,
+          food_interests: formData.foodInterests,
+          notification_email: formData.notificationPreferences.email,
+          notification_push: formData.notificationPreferences.push,
+        }]);
+        
+      if (preferencesError) throw preferencesError;
+      
+      // Update local profile state
+      setProfile(profileData);
+      
+      toast({
+        title: "Profile complete!",
+        description: "Your profile has been set up successfully.",
+      });
+      
+      // Redirect to homepage
+      navigate('/');
+      
+    } catch (error) {
+      console.error('Error during onboarding:', error);
+      toast({
+        title: "Error",
+        description: "There was a problem setting up your profile. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className={`flex items-center justify-center min-h-screen ${isDesktop ? 'px-4' : 'px-6'} py-12 bg-background`}>
-      <Card className={`w-full ${isDesktop ? 'max-w-md' : ''} mx-auto`}>
-        <div className="relative">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-muted">
-            <div 
-              className="h-full bg-spotly-red transition-all duration-300"
-              style={{ width: `${(step / totalSteps) * 100}%` }}
-            />
-          </div>
-          <div className="pt-6">
-            {renderStep()}
-            <CardFooter className="flex justify-between pt-6">
-              <Button
-                variant="ghost"
-                onClick={prevStep}
-                disabled={step === 1 || isLoading}
-              >
-                Back
-              </Button>
-              <div className="text-sm text-muted-foreground">
-                Step {step} of {totalSteps}
-              </div>
-              <Button
-                onClick={nextStep}
-                disabled={isLoading}
-              >
-                {step === totalSteps ? (isLoading ? 'Saving...' : 'Finish') : 'Next'}
-                {step !== totalSteps && <ChevronRight className="ml-1 h-4 w-4" />}
-              </Button>
-            </CardFooter>
+    <div className="min-h-screen flex flex-col bg-background">
+      <div className="container max-w-xl mx-auto px-4 py-8 flex-1 flex flex-col">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold mb-2">Welcome to Dinex</h1>
+          <p className="text-muted-foreground">Complete your profile to get started</p>
+        </div>
+
+        <div className="mb-8">
+          <Progress value={(step / 4) * 100} className="h-2" />
+          <div className="flex justify-between mt-2 text-sm">
+            <span className={step >= 1 ? "text-primary font-medium" : "text-muted-foreground"}>Profile</span>
+            <span className={step >= 2 ? "text-primary font-medium" : "text-muted-foreground"}>Preferences</span>
+            <span className={step >= 3 ? "text-primary font-medium" : "text-muted-foreground"}>Interests</span>
+            <span className={step >= 4 ? "text-primary font-medium" : "text-muted-foreground"}>Settings</span>
           </div>
         </div>
-      </Card>
+
+        <div className="flex-1">
+          {step === 1 && (
+            <div className="space-y-6 animate-fade-in">
+              <h2 className="text-2xl font-semibold mb-4">Your Profile</h2>
+              
+              <div className="flex flex-col items-center mb-6">
+                <div 
+                  className="w-32 h-32 rounded-full overflow-hidden bg-muted mb-4 relative cursor-pointer"
+                  onClick={triggerFileInput}
+                >
+                  {formData.previewImage || user?.user_metadata?.avatar_url ? (
+                    <img 
+                      src={formData.previewImage || user?.user_metadata?.avatar_url || ''} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-primary/10 text-2xl font-medium">
+                      {formData.fullName ? formData.fullName[0].toUpperCase() : 'U'}
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <span className="text-white text-sm">Change Photo</span>
+                  </div>
+                </div>
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                />
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  type="button" 
+                  onClick={triggerFileInput}
+                >
+                  Upload Photo
+                </Button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <Input
+                    id="fullName"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleInputChange}
+                    placeholder="Your full name"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="Your email address"
+                    disabled={!!user?.email}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {step === 2 && (
+            <div className="space-y-6 animate-fade-in">
+              <h2 className="text-2xl font-semibold mb-4">Dietary Preferences</h2>
+              <p className="text-muted-foreground mb-4">
+                Let us know about your dietary preferences so we can personalize your experience.
+              </p>
+              
+              <div className="space-y-3">
+                {['Vegetarian', 'Vegan', 'Pescatarian', 'Gluten Free', 'Dairy Free', 'Keto', 'Paleo', 'No Restrictions'].map((preference) => (
+                  <div key={preference} className="flex items-center space-x-3">
+                    <Checkbox 
+                      id={`pref-${preference}`} 
+                      checked={formData.dietaryPreferences.includes(preference)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          handleCheckboxChange(preference, 'dietaryPreferences');
+                        } else {
+                          handleCheckboxChange(preference, 'dietaryPreferences');
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`pref-${preference}`}>{preference}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {step === 3 && (
+            <div className="space-y-6 animate-fade-in">
+              <h2 className="text-2xl font-semibold mb-4">Food Interests</h2>
+              <p className="text-muted-foreground mb-4">
+                What types of food are you most interested in?
+              </p>
+              
+              <div className="grid grid-cols-2 gap-3">
+                {['Italian', 'Japanese', 'Mexican', 'Indian', 'Chinese', 'Thai', 'American', 'Middle Eastern', 'Korean', 'French', 'Seafood', 'Desserts'].map((cuisine) => (
+                  <div key={cuisine} className="flex items-center space-x-3">
+                    <Checkbox 
+                      id={`cuisine-${cuisine}`} 
+                      checked={formData.foodInterests.includes(cuisine)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          handleCheckboxChange(cuisine, 'foodInterests');
+                        } else {
+                          handleCheckboxChange(cuisine, 'foodInterests');
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`cuisine-${cuisine}`}>{cuisine}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {step === 4 && (
+            <div className="space-y-6 animate-fade-in">
+              <h2 className="text-2xl font-semibold mb-4">Notification Settings</h2>
+              <p className="text-muted-foreground mb-4">
+                How would you like to receive updates from Dinex?
+              </p>
+              
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <Checkbox 
+                    id="email-notifications" 
+                    checked={formData.notificationPreferences.email}
+                    onCheckedChange={(checked) => {
+                      handleNotificationChange('email', !!checked);
+                    }}
+                  />
+                  <Label htmlFor="email-notifications">Email notifications</Label>
+                </div>
+                
+                <div className="flex items-center space-x-3">
+                  <Checkbox 
+                    id="push-notifications" 
+                    checked={formData.notificationPreferences.push}
+                    onCheckedChange={(checked) => {
+                      handleNotificationChange('push', !!checked);
+                    }}
+                  />
+                  <Label htmlFor="push-notifications">Push notifications</Label>
+                </div>
+              </div>
+              
+              <div className="pt-6 mt-6 border-t">
+                <h3 className="text-xl font-semibold mb-3">You're all set!</h3>
+                <p className="text-muted-foreground">
+                  Complete your profile to start using Dinex. You can always update these preferences later in your profile settings.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8 flex justify-between">
+          {step > 1 ? (
+            <Button variant="outline" onClick={prevStep} disabled={isSubmitting}>
+              Back
+            </Button>
+          ) : (
+            <div></div>
+          )}
+          
+          {step < 4 ? (
+            <Button onClick={nextStep}>
+              Continue
+            </Button>
+          ) : (
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? 'Setting Up...' : 'Complete Setup'}
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

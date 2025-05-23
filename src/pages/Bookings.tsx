@@ -1,493 +1,321 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format, parseISO, isAfter } from 'date-fns';
-import { CalendarClock, Calendar, Award, Check, Clock, XCircle, MoreHorizontal, Plus } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { CalendarDays, Clock, MapPin, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Reservation, Ticket } from '@/types';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { useToast } from "@/hooks/use-toast"
 import { useAuth } from '@/hooks/useAuthContext';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Skeleton } from '@/components/ui/skeleton';
-import EmptyState from '@/components/EmptyState';
+import TopNav from '@/components/TopNav';
 
-const mockReservations: Reservation[] = [
-  {
-    id: '1',
-    placeId: 'place1',
-    placeName: 'Le Petite Bistro',
-    placeImage: 'https://i.pravatar.cc/150?img=10',
-    date: new Date(Date.now() + 86400000 * 2).toISOString(),
-    time: '19:30',
-    partySize: 2,
-    status: 'confirmed'
-  },
-  {
-    id: '2',
-    placeId: 'place2',
-    placeName: 'Sushi Heaven',
-    placeImage: 'https://i.pravatar.cc/150?img=35',
-    date: new Date(Date.now() + 86400000 * 5).toISOString(),
-    time: '18:00',
-    partySize: 4,
-    status: 'pending'
-  },
-  {
-    id: '3',
-    placeId: 'place3',
-    placeName: 'Burger Joint',
-    placeImage: 'https://i.pravatar.cc/150?img=50',
-    date: new Date(Date.now() - 86400000 * 3).toISOString(),
-    time: '12:30',
-    partySize: 2,
-    status: 'completed'
-  },
-  {
-    id: '4',
-    placeId: 'place4',
-    placeName: 'Pizza Palace',
-    placeImage: 'https://i.pravatar.cc/150?img=15',
-    date: new Date(Date.now() - 86400000 * 10).toISOString(),
-    time: '19:00',
-    partySize: 6,
-    status: 'cancelled'
-  }
-];
-
-const mockTickets: Ticket[] = [
-  {
-    id: '1',
-    eventId: 'event1',
-    eventName: 'Jazz Night',
-    eventImage: 'https://i.pravatar.cc/150?img=20',
-    eventDate: new Date(Date.now() + 86400000 * 7).toISOString(),
-    purchaseDate: new Date(Date.now() - 86400000).toISOString(),
-    price: 25,
-    status: 'active',
-    ticketType: 'General Admission'
-  },
-  {
-    id: '2',
-    eventId: 'event2',
-    eventName: 'Wine Tasting',
-    eventImage: 'https://i.pravatar.cc/150?img=30',
-    eventDate: new Date(Date.now() + 86400000 * 3).toISOString(),
-    purchaseDate: new Date(Date.now() - 86400000 * 5).toISOString(),
-    price: 40,
-    status: 'active',
-    ticketType: 'Premium'
-  },
-  {
-    id: '3',
-    eventId: 'event3',
-    eventName: 'Dance Performance',
-    eventImage: 'https://i.pravatar.cc/150?img=40',
-    eventDate: new Date(Date.now() - 86400000 * 2).toISOString(),
-    purchaseDate: new Date(Date.now() - 86400000 * 15).toISOString(),
-    price: 30,
-    status: 'expired',
-    ticketType: 'General Admission'
-  }
-];
+interface Booking {
+  id: string;
+  place_id: string;
+  user_id: string;
+  start_time: string;
+  end_time: string;
+  guests: number;
+  status: 'upcoming' | 'completed' | 'cancelled';
+  place_name: string;
+  place_address: string;
+  place_image_url: string;
+}
 
 const Bookings = () => {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState('reservations');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [reservations, setReservations] = useState<Reservation[]>(mockReservations);
-  const [tickets, setTickets] = useState<Ticket[]>(mockTickets);
-  const [reservationModalOpen, setReservationModalOpen] = useState(false);
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('upcoming');
 
-  React.useEffect(() => {
-    if (!user && !authLoading) {
+  useEffect(() => {
+    if (!user) {
       navigate('/auth');
+      return;
     }
-  }, [user, navigate, authLoading]);
 
-  React.useEffect(() => {
-    setLoading(true);
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
+    const fetchBookings = async () => {
+      setLoading(true);
+      try {
+        // Mock bookings data
+        const mockBookings: Booking[] = [
+          {
+            id: '1',
+            place_id: '101',
+            user_id: user.id,
+            start_time: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString(),
+            end_time: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString(),
+            guests: 2,
+            status: 'upcoming',
+            place_name: 'The Cozy Cafe',
+            place_address: '123 Main St, Anytown',
+            place_image_url: 'https://source.unsplash.com/300x200/?cafe'
+          },
+          {
+            id: '2',
+            place_id: '102',
+            user_id: user.id,
+            start_time: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString(),
+            end_time: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString(),
+            guests: 4,
+            status: 'upcoming',
+            place_name: 'Gourmet Restaurant',
+            place_address: '456 Elm St, Anytown',
+            place_image_url: 'https://source.unsplash.com/300x200/?restaurant'
+          },
+          {
+            id: '3',
+            place_id: '103',
+            user_id: user.id,
+            start_time: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString(),
+            end_time: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString(),
+            guests: 2,
+            status: 'completed',
+            place_name: 'Local Pizzeria',
+            place_address: '789 Oak St, Anytown',
+            place_image_url: 'https://source.unsplash.com/300x200/?pizza'
+          },
+          {
+            id: '4',
+            place_id: '104',
+            user_id: user.id,
+            start_time: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString(),
+            end_time: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString(),
+            guests: 1,
+            status: 'cancelled',
+            place_name: 'Sushi Bar',
+            place_address: '101 Pine St, Anytown',
+            place_image_url: 'https://source.unsplash.com/300x200/?sushi'
+          },
+        ];
 
-  const upcomingReservations = reservations.filter(
-    res => res.status === 'confirmed' || res.status === 'pending'
-  );
-  
-  const pastReservations = reservations.filter(
-    res => res.status === 'completed' || res.status === 'cancelled'
-  );
+        setBookings(mockBookings);
+      } catch (error) {
+        console.error('Error fetching bookings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load bookings. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const activeTickets = tickets.filter(ticket => {
-    if (ticket.status === 'expired' || ticket.status === 'used') return false;
-    return isAfter(new Date(ticket.eventDate), new Date());
-  });
-  
-  const pastTickets = tickets.filter(ticket => {
-    if (ticket.status === 'expired' || ticket.status === 'used') return true;
-    return !isAfter(new Date(ticket.eventDate), new Date());
-  });
+    fetchBookings();
+  }, [user, navigate, toast]);
 
-  const handleCancelReservation = (id: string) => {
-    setReservations(prev => 
-      prev.map(res => 
-        res.id === id ? { ...res, status: 'cancelled' } : res
-      )
+  const handleModifyBooking = (bookingId: string) => {
+    toast({
+      title: "Modify Booking",
+      description: `Modifying booking with ID: ${bookingId}`,
+    });
+  };
+
+  const handleCancelBooking = (bookingId: string) => {
+    toast({
+      title: "Cancel Booking",
+      description: `Cancelling booking with ID: ${bookingId}`,
+    });
+  };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    };
+    return date.toLocaleDateString(undefined, options);
+  };
+
+  const UpcomingBookings = () => {
+    const upcoming = bookings.filter(booking => booking.status === 'upcoming');
+
+    return (
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        {upcoming.map(booking => (
+          <Card key={booking.id}>
+            <CardHeader>
+              <CardTitle>{booking.place_name}</CardTitle>
+              <CardDescription>
+                <div className="flex items-center text-muted-foreground">
+                  <MapPin className="mr-2 h-4 w-4" />
+                  {booking.place_address}
+                </div>
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center text-sm">
+                <CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" />
+                {formatDate(booking.start_time)}
+              </div>
+              <div className="flex items-center text-sm">
+                <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                {booking.guests} Guests
+              </div>
+            </CardContent>
+            <CardFooter className="flex justify-between items-center">
+              <Button onClick={() => navigate(`/place/${booking.place_id}`)}>
+                View Place
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost">Actions</Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleModifyBooking(booking.id)}>
+                    Modify
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleCancelBooking(booking.id)}>
+                    Cancel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
     );
   };
 
-  const renderActionItems = () => {
-    return [
-      {
-        icon: <Plus className="h-5 w-5" />,
-        label: "Make a Reservation",
-        onClick: () => setReservationModalOpen(true)
-      },
-      // ... other action items
-    ];
+  const PastBookings = () => {
+    const past = bookings.filter(booking => booking.status === 'completed');
+
+    return (
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        {past.map(booking => (
+          <Card key={booking.id}>
+            <CardHeader>
+              <CardTitle>{booking.place_name}</CardTitle>
+              <CardDescription>
+                <div className="flex items-center text-muted-foreground">
+                  <MapPin className="mr-2 h-4 w-4" />
+                  {booking.place_address}
+                </div>
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center text-sm">
+                <CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" />
+                {formatDate(booking.start_time)}
+              </div>
+              <div className="flex items-center text-sm">
+                <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                {booking.guests} Guests
+              </div>
+            </CardContent>
+            <CardFooter className="flex justify-between items-center">
+              <Button onClick={() => navigate(`/place/${booking.place_id}`)}>
+                View Place
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost">Actions</Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleModifyBooking(booking.id)}>
+                    Modify
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleCancelBooking(booking.id)}>
+                    Cancel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+    );
   };
 
-  if (authLoading || loading) {
-    return (
-      <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
-        <Skeleton className="h-10 w-32 mb-6" />
-        <div className="space-y-4">
-          {Array(3).fill(null).map((_, i) => (
-            <Skeleton key={i} className="h-36 w-full rounded-lg" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const CancelledBookings = () => {
+    const cancelled = bookings.filter(booking => booking.status === 'cancelled');
 
-  if (error) {
     return (
-      <div className="container px-4 py-6 pt-16 pb-20 md:pb-6 max-w-4xl mx-auto">
-        <Alert variant="destructive">
-          <AlertDescription>
-            {error}
-          </AlertDescription>
-        </Alert>
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        {cancelled.map(booking => (
+          <Card key={booking.id}>
+            <CardHeader>
+              <CardTitle>{booking.place_name}</CardTitle>
+              <CardDescription>
+                <div className="flex items-center text-muted-foreground">
+                  <MapPin className="mr-2 h-4 w-4" />
+                  {booking.place_address}
+                </div>
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center text-sm">
+                <CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" />
+                {formatDate(booking.start_time)}
+              </div>
+              <div className="flex items-center text-sm">
+                <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                {booking.guests} Guests
+              </div>
+            </CardContent>
+            <CardFooter className="flex justify-between items-center">
+              <Button onClick={() => navigate(`/place/${booking.place_id}`)}>
+                View Place
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost">Actions</Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleModifyBooking(booking.id)}>
+                    Modify
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleCancelBooking(booking.id)}>
+                    Cancel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </CardFooter>
+          </Card>
+        ))}
       </div>
     );
-  }
+  };
 
   return (
-    <div className="container px-4 pb-20 md:pb-10 pt-16 md:pt-6">
-      <h1 className="text-2xl font-bold mb-6">Your Bookings</h1>
-      
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full grid grid-cols-2 mb-6">
-          <TabsTrigger value="reservations">Reservations</TabsTrigger>
-          <TabsTrigger value="tickets">Event Tickets</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="reservations" className="space-y-6">
-          <div>
-            <h2 className="text-lg font-medium mb-3">Upcoming Reservations</h2>
-            {upcomingReservations.length > 0 ? (
-              <div className="space-y-4">
-                {upcomingReservations.map(reservation => (
-                  <Card key={reservation.id} className="overflow-hidden">
-                    <div className="flex">
-                      <div className="w-24 h-24 sm:w-36 sm:h-36 overflow-hidden">
-                        <img 
-                          src={reservation.placeImage} 
-                          alt={reservation.placeName} 
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <CardContent className="flex-1 p-4 sm:p-6">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className="font-medium text-base sm:text-lg">{reservation.placeName}</h3>
-                            <div className="flex items-center text-muted-foreground mt-1">
-                              <Calendar className="h-3.5 w-3.5 mr-1" />
-                              <span className="text-xs sm:text-sm">
-                                {format(new Date(reservation.date), 'EEEE, MMMM d, yyyy')}
-                              </span>
-                            </div>
-                            <div className="flex items-center text-muted-foreground mt-1">
-                              <Clock className="h-3.5 w-3.5 mr-1" />
-                              <span className="text-xs sm:text-sm">{reservation.time}</span>
-                            </div>
-                            <div className="mt-2">
-                              <Badge variant={reservation.status === 'confirmed' ? 'default' : 'outline'}>
-                                {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
-                              </Badge>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="hidden sm:flex">
-                            {reservation.partySize} {reservation.partySize === 1 ? 'person' : 'people'}
-                          </Badge>
-                        </div>
-                      </CardContent>
-                    </div>
-                    <CardFooter className="flex justify-between bg-muted/50 px-4 py-3">
-                      <Button
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => navigate(`/place/${reservation.placeId}`)}
-                      >
-                        View Place
-                      </Button>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          onClick={() => {/* Navigate to modify reservation */}}
-                        >
-                          Modify
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem 
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => handleCancelReservation(reservation.id)}
-                            >
-                              Cancel Reservation
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={<CalendarClock className="h-12 w-12 text-muted-foreground" />}
-                title="No upcoming reservations"
-                description="When you make a reservation at a restaurant or venue, it will appear here."
-                action={
-                  <Button onClick={() => navigate('/')}>Explore Places</Button>
-                }
-              />
-            )}
-          </div>
-          
-          {pastReservations.length > 0 && (
-            <div className="mt-8">
-              <h2 className="text-lg font-medium mb-3">Past Reservations</h2>
-              <div className="space-y-4">
-                {pastReservations.map(reservation => (
-                  <Card key={reservation.id} className="overflow-hidden">
-                    <div className="flex">
-                      <div className="w-24 h-24 sm:w-36 sm:h-36 overflow-hidden">
-                        <img 
-                          src={reservation.placeImage} 
-                          alt={reservation.placeName} 
-                          className="w-full h-full object-cover opacity-70"
-                        />
-                      </div>
-                      <CardContent className="flex-1 p-4 sm:p-6">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className="font-medium text-base sm:text-lg">{reservation.placeName}</h3>
-                            <div className="flex items-center text-muted-foreground mt-1">
-                              <Calendar className="h-3.5 w-3.5 mr-1" />
-                              <span className="text-xs sm:text-sm">
-                                {format(new Date(reservation.date), 'EEEE, MMMM d, yyyy')}
-                              </span>
-                            </div>
-                            <div className="flex items-center text-muted-foreground mt-1">
-                              <Clock className="h-3.5 w-3.5 mr-1" />
-                              <span className="text-xs sm:text-sm">{reservation.time}</span>
-                            </div>
-                            <div className="mt-2">
-                              <Badge 
-                                variant={reservation.status === 'completed' ? 'secondary' : 'outline'}
-                                className="opacity-70"
-                              >
-                                {reservation.status === 'completed' && <Check className="h-3 w-3 mr-1" />}
-                                {reservation.status === 'cancelled' && <XCircle className="h-3 w-3 mr-1" />}
-                                {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
-                              </Badge>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="hidden sm:flex opacity-70">
-                            {reservation.partySize} {reservation.partySize === 1 ? 'person' : 'people'}
-                          </Badge>
-                        </div>
-                      </CardContent>
-                    </div>
-                    <CardFooter className="flex justify-between bg-muted/50 px-4 py-3">
-                      <Button
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => navigate(`/place/${reservation.placeId}`)}
-                      >
-                        View Place
-                      </Button>
-                      {reservation.status === 'completed' && (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {/* Add review logic */}}
-                        >
-                          Leave Review
-                        </Button>
-                      )}
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="tickets" className="space-y-6">
-          <div>
-            <h2 className="text-lg font-medium mb-3">Upcoming Events</h2>
-            {activeTickets.length > 0 ? (
-              <div className="space-y-4">
-                {activeTickets.map(ticket => (
-                  <Card key={ticket.id} className="overflow-hidden">
-                    <div className="flex">
-                      <div className="w-24 h-24 sm:w-36 sm:h-36 overflow-hidden">
-                        <img 
-                          src={ticket.eventImage} 
-                          alt={ticket.eventName} 
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <CardContent className="flex-1 p-4 sm:p-6">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className="font-medium text-base sm:text-lg">{ticket.eventName}</h3>
-                            <div className="flex items-center text-muted-foreground mt-1">
-                              <Calendar className="h-3.5 w-3.5 mr-1" />
-                              <span className="text-xs sm:text-sm">
-                                {format(new Date(ticket.eventDate), 'EEEE, MMMM d, yyyy')}
-                              </span>
-                            </div>
-                            <div className="flex items-center text-muted-foreground mt-1">
-                              <Award className="h-3.5 w-3.5 mr-1" />
-                              <span className="text-xs sm:text-sm">{ticket.ticketType}</span>
-                            </div>
-                            <div className="mt-2 flex items-center gap-2">
-                              <Badge variant="default">
-                                Active
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                ${ticket.price.toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </div>
-                    <CardFooter className="flex justify-between bg-muted/50 px-4 py-3">
-                      <Button
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {/* View event details */}}
-                      >
-                        View Event
-                      </Button>
-                      <Button 
-                        variant="default" 
-                        size="sm"
-                        onClick={() => {/* Show ticket QR code */}}
-                      >
-                        View Ticket
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={<CalendarClock className="h-12 w-12 text-muted-foreground" />}
-                title="No upcoming event tickets"
-                description="When you purchase tickets to events, they will appear here."
-                action={
-                  <Button onClick={() => navigate('/events')}>Find Events</Button>
-                }
-              />
-            )}
-          </div>
-          
-          {pastTickets.length > 0 && (
-            <div className="mt-8">
-              <h2 className="text-lg font-medium mb-3">Past Events</h2>
-              <div className="space-y-4">
-                {pastTickets.map(ticket => (
-                  <Card key={ticket.id} className="overflow-hidden">
-                    <div className="flex">
-                      <div className="w-24 h-24 sm:w-36 sm:h-36 overflow-hidden">
-                        <img 
-                          src={ticket.eventImage} 
-                          alt={ticket.eventName} 
-                          className="w-full h-full object-cover opacity-70"
-                        />
-                      </div>
-                      <CardContent className="flex-1 p-4 sm:p-6">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className="font-medium text-base sm:text-lg">{ticket.eventName}</h3>
-                            <div className="flex items-center text-muted-foreground mt-1">
-                              <Calendar className="h-3.5 w-3.5 mr-1" />
-                              <span className="text-xs sm:text-sm">
-                                {format(new Date(ticket.eventDate), 'EEEE, MMMM d, yyyy')}
-                              </span>
-                            </div>
-                            <div className="flex items-center text-muted-foreground mt-1">
-                              <Award className="h-3.5 w-3.5 mr-1" />
-                              <span className="text-xs sm:text-sm">{ticket.ticketType}</span>
-                            </div>
-                            <div className="mt-2">
-                              <Badge 
-                                variant="outline"
-                                className="opacity-70"
-                              >
-                                Expired
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </div>
-                    <CardFooter className="flex justify-between bg-muted/50 px-4 py-3">
-                      <Button
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {/* View event details */}}
-                      >
-                        View Event
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+    <div className="min-h-screen bg-background">
+      <TopNav />
+      <div className="container max-w-6xl mx-auto px-4 py-10">
+        <h1 className="text-3xl font-bold mb-6">My Bookings</h1>
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        {renderActionItems().map((item, index) => (
-          <Button
-            key={index}
-            variant="outline"
-            className="h-20 flex-col justify-center border-dashed"
-            onClick={item.onClick}
-          >
-            {React.isValidElement(item.icon) ? item.icon : null}
-            <span className="mt-2 text-xs">{item.label}</span>
-          </Button>
-        ))}
+        <Tabs defaultValue={activeTab} className="w-full">
+          <TabsList>
+            <TabsTrigger value="upcoming" onClick={() => setActiveTab('upcoming')}>Upcoming</TabsTrigger>
+            <TabsTrigger value="past" onClick={() => setActiveTab('past')}>Past</TabsTrigger>
+            <TabsTrigger value="cancelled" onClick={() => setActiveTab('cancelled')}>Cancelled</TabsTrigger>
+          </TabsList>
+          <TabsContent value="upcoming">
+            <UpcomingBookings />
+          </TabsContent>
+          <TabsContent value="past">
+            <PastBookings />
+          </TabsContent>
+          <TabsContent value="cancelled">
+            <CancelledBookings />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
