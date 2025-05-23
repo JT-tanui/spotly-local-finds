@@ -16,7 +16,7 @@ import Onboarding from '@/pages/Onboarding';
 import Checkout from '@/pages/Checkout';
 import BottomNav from '@/components/BottomNav';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { ThemeProvider } from '@/hooks/useTheme';
+import { ThemeContext } from '@/contexts/ThemeContext';
 
 const queryClient = new QueryClient();
 
@@ -33,7 +33,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <ThemeProvider>
+        <ThemeContext>
           <BrowserRouter>
             <div className="flex flex-col min-h-screen bg-background">
               <Routes>
@@ -59,7 +59,7 @@ function App() {
               <Toaster />
             </div>
           </BrowserRouter>
-        </ThemeProvider>
+        </ThemeContext>
       </AuthProvider>
     </QueryClientProvider>
   );

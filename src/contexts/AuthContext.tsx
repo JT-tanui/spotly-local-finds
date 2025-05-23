@@ -42,12 +42,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     // Check active session
     const checkUser = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (!error && data.session) {
-        setUser(data.session.user);
-        
-        // Fetch user profile
-        try {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (!error && data?.session) {
+          setUser(data.session.user);
+          
+          // Fetch user profile
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
             .select('*')
@@ -57,11 +57,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (!profileError && profileData) {
             setProfile(profileData);
           }
-        } catch (e) {
-          console.error('Error fetching user profile:', e);
         }
+      } catch (e) {
+        console.error('Error checking auth session:', e);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     
     checkUser();
