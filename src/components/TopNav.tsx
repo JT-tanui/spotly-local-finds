@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, CalendarDays, Users, MessageSquare, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useLocationHook } from '@/hooks/useLocation';
+import { useLocation as useLocationHook } from '@/hooks/useLocation';
 import { useAuth } from '@/hooks/useAuthContext';
 import ThemeToggle from '@/components/ThemeToggle';
 import NavItem from './navigation/NavItem';

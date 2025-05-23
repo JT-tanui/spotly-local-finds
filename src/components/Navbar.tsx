@@ -1,21 +1,23 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { MapPin, User, Menu, X, Bell, Home, CalendarDays, MessageSquare, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { MapPin, User, Menu, X, Bell } from 'lucide-react';
-import { LocationData } from '@/types';
+import { useLocation } from '@/hooks/useLocation';
 import { useNotifications } from '@/hooks/useNotifications';
+import NavItem from './navigation/NavItem';
+import MobileMenuItem from './navigation/MobileMenuItem';
+import LocationButton from './navigation/LocationButton';
 import { Badge } from "@/components/ui/badge";
 
-interface NavbarProps {
-  location: LocationData | null;
+const Navbar: React.FC<{
+  location: any;
   onLocationClick?: () => void;
-}
-
-const Navbar: React.FC<NavbarProps> = ({ location, onLocationClick }) => {
+}> = ({ location, onLocationClick }) => {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
   const { permissionStatus, requestPermission } = useNotifications();
+  const unreadMessages = 3; // Example unread count
   
   const handleLocationClick = () => {
     if (onLocationClick) {
@@ -49,17 +51,12 @@ const Navbar: React.FC<NavbarProps> = ({ location, onLocationClick }) => {
         </div>
 
         {/* Location button - always visible */}
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="md:ml-4 flex items-center text-spotly-dark" 
-          onClick={handleLocationClick}
-        >
-          <MapPin className="mr-1 h-4 w-4 text-spotly-red" />
-          <span className="truncate max-w-[120px]">
-            {location?.city || location?.address || "Set location"}
-          </span>
-        </Button>
+        <LocationButton 
+          location={{
+            city: location?.city,
+            address: location?.address
+          }}
+        />
 
         {/* Notification button - visible on mobile */}
         <Button
@@ -86,10 +83,10 @@ const Navbar: React.FC<NavbarProps> = ({ location, onLocationClick }) => {
 
         {/* Desktop navigation */}
         <nav className="hidden md:flex items-center space-x-4">
-          <Button variant="ghost" onClick={() => navigate('/')}>Explore</Button>
-          <Button variant="ghost" onClick={() => navigate('/bookings')}>Bookings</Button>
-          <Button variant="ghost" onClick={() => navigate('/saved')}>Saved</Button>
-          <Button variant="ghost" onClick={() => navigate('/events')}>Events</Button>
+          <NavItem to="/" icon={<Home size={18} />} label="Explore" />
+          <NavItem to="/bookings" icon={<CalendarDays size={18} />} label="Bookings" />
+          <NavItem to="/saved" label="Saved" icon={<Users size={18} />} />
+          <NavItem to="/events" label="Events" icon={<Users size={18} />} />
           <Button variant="outline" size="icon" onClick={() => navigate('/profile')}>
             <User size={18} />
           </Button>
@@ -100,12 +97,43 @@ const Navbar: React.FC<NavbarProps> = ({ location, onLocationClick }) => {
       {isOpen && (
         <div className="md:hidden bg-background border-t">
           <div className="container mx-auto py-2 px-4 flex flex-col space-y-2">
-            <Button variant="ghost" className="justify-start" onClick={() => { navigate('/'); setIsOpen(false); }}>Explore</Button>
-            <Button variant="ghost" className="justify-start" onClick={() => { navigate('/bookings'); setIsOpen(false); }}>Bookings</Button>
-            <Button variant="ghost" className="justify-start" onClick={() => { navigate('/saved'); setIsOpen(false); }}>Saved</Button>
-            <Button variant="ghost" className="justify-start" onClick={() => { navigate('/events'); setIsOpen(false); }}>Events</Button>
-            <Button variant="ghost" className="justify-start" onClick={() => { navigate('/inbox'); setIsOpen(false); }}>Inbox</Button>
-            <Button variant="ghost" className="justify-start" onClick={() => { navigate('/profile'); setIsOpen(false); }}>Profile</Button>
+            <MobileMenuItem 
+              to="/" 
+              icon={<Home size={18} />} 
+              label="Explore" 
+              onClick={() => setIsOpen(false)} 
+            />
+            <MobileMenuItem 
+              to="/bookings" 
+              icon={<CalendarDays size={18} />} 
+              label="Bookings" 
+              onClick={() => setIsOpen(false)}
+            />
+            <MobileMenuItem 
+              to="/saved" 
+              icon={<Users size={18} />} 
+              label="Saved" 
+              onClick={() => setIsOpen(false)}
+            />
+            <MobileMenuItem 
+              to="/events" 
+              icon={<Users size={18} />} 
+              label="Events" 
+              onClick={() => setIsOpen(false)}
+            />
+            <MobileMenuItem 
+              to="/inbox" 
+              icon={<MessageSquare size={18} />} 
+              label="Inbox" 
+              onClick={() => setIsOpen(false)}
+              badge={unreadMessages}
+            />
+            <MobileMenuItem 
+              to="/profile" 
+              icon={<User size={18} />} 
+              label="Profile" 
+              onClick={() => setIsOpen(false)}
+            />
           </div>
         </div>
       )}
